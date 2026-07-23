@@ -1,0 +1,1903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stitch Your Pets — Internal Pattern Generator</title>
+<!-- Used only to style the printed pattern (below) to match the look of
+     Annie's actual branded "Base Cat Crochet Pattern" booklet — bold rounded
+     display font for headings, softer rounded sans for body text. Printing
+     still works fine offline; it just falls back to the system font. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- pdf-lib: lets "Add to Original Pattern PDF" load Annie's actual base
+     pattern PDF bytes and append new pages to it in the browser, rather
+     than trying to recreate its pages from scratch. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<style>
+:root{
+  --paper:#FBFAF5; --ink:#2B2926; --ink-soft:#6E685E; --card:#FFFFFF;
+  --card-edge:rgba(43,41,38,0.14); --accent:#C96F2E; --accent-soft:rgba(201,111,46,0.12);
+  --mono-bg:#F3EFE6; --good:#5F7355; --bad:#B3492F; --line:rgba(43,41,38,0.22);
+}
+*{box-sizing:border-box;}
+body{background:var(--paper);color:var(--ink);font-family:"Palatino Linotype",Palatino,"Iowan Old Style","Book Antiqua",Georgia,serif;margin:0;padding:0;}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+header{margin-bottom:22px;}
+h1{font-size:28px;margin:0 0 4px;}
+.sub{color:var(--ink-soft);font-family:system-ui,sans-serif;font-size:13.5px;}
+.steps{display:flex;gap:8px;margin:22px 0;flex-wrap:wrap;font-family:system-ui,sans-serif;}
+.step-btn{border:1px solid var(--card-edge);background:var(--card);border-radius:99px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-soft);}
+.step-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.step-btn .n{display:inline-block;width:18px;height:18px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:11px;line-height:18px;text-align:center;margin-right:6px;}
+.step-btn.active .n{background:rgba(255,255,255,.3);color:#fff;}
+section.panel{display:none;}
+section.panel.active{display:block;}
+.card{background:var(--card);border:1px solid var(--card-edge);border-radius:10px;padding:20px 22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(43,41,38,.05);}
+.card h2{font-size:19px;margin:0 0 4px;}
+.card h3{font-size:15px;margin:14px 0 6px;}
+.hint{font-family:system-ui,sans-serif;font-size:12.5px;color:var(--ink-soft);line-height:1.5;}
+label{font-family:system-ui,sans-serif;font-size:12px;font-weight:600;color:var(--ink-soft);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;}
+input[type=text],input[type=password],textarea,select{font-family:system-ui,sans-serif;font-size:13.5px;padding:8px 10px;border:1px solid var(--card-edge);border-radius:6px;background:#fff;color:var(--ink);width:100%;}
+textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;min-height:140px;}
+button{font-family:system-ui,sans-serif;font-weight:600;font-size:13px;border:1px solid var(--accent);background:var(--accent);color:#fff;padding:9px 16px;border-radius:7px;cursor:pointer;}
+button.secondary{background:#fff;color:var(--accent);}
+button.ghost{background:transparent;color:var(--ink-soft);border-color:var(--card-edge);}
+button:disabled{opacity:.45;cursor:not-allowed;}
+button.small{padding:5px 10px;font-size:12px;}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+.upload-slot{border:1.5px dashed var(--card-edge);border-radius:8px;padding:14px;text-align:center;position:relative;background:#fdfcf9;}
+.upload-slot img{max-width:100%;max-height:140px;border-radius:6px;display:block;margin:0 auto 6px;}
+.upload-slot .lbl{font-family:system-ui,sans-serif;font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;}
+.upload-slot input[type=file]{font-size:11px;width:100%;}
+.tag{display:inline-block;font-family:system-ui,sans-serif;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);text-transform:uppercase;letter-spacing:.05em;}
+table{width:100%;border-collapse:collapse;font-family:system-ui,sans-serif;font-size:13px;}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--card-edge);}
+th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+.swatch{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);display:inline-block;vertical-align:middle;}
+.palette-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.palette-chip{display:flex;align-items:center;gap:6px;border:1px solid var(--card-edge);border-radius:99px;padding:4px 10px 4px 4px;font-family:system-ui,sans-serif;font-size:12px;cursor:pointer;background:#fff;}
+.palette-chip.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft);}
+.part-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
+.part-tab{font-family:system-ui,sans-serif;font-size:12px;padding:6px 12px;border-radius:7px;border:1px solid var(--card-edge);background:#fff;color:var(--ink);cursor:pointer;}
+.part-tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-family:system-ui,sans-serif;}
+.tool-btn{padding:6px 10px;border-radius:6px;border:1px solid var(--card-edge);background:#fff;color:var(--ink);font-size:12px;cursor:pointer;}
+.tool-btn.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.grid-scroll{width:100%;height:480px;overflow:auto;border:1px solid var(--card-edge);border-radius:8px;background:repeating-conic-gradient(#f4f2ec 0% 25%, #fff 0% 50%) 50% / 16px 16px;cursor:crosshair;}
+.grid-scroll.panning{cursor:grab;}
+.cell{stroke:var(--line);stroke-width:1;}
+.cell:hover{stroke:var(--accent);stroke-width:2;}
+.preview-box{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;}
+.preview3d-wrap{width:400px;height:400px;border:1px solid var(--card-edge);border-radius:8px;background:#fdfcf9;position:relative;overflow:hidden;cursor:grab;touch-action:none;}
+.preview3d-wrap.dragging{cursor:grabbing;}
+.preview3d-wrap canvas{display:block;width:100%;height:100%;}
+.preview3d-controls{display:flex;align-items:center;gap:10px;margin-top:8px;font-family:system-ui,sans-serif;font-size:12px;color:var(--ink-soft);flex-wrap:wrap;}
+.preview3d-controls label{display:inline-flex;align-items:center;gap:5px;text-transform:none;font-weight:400;margin:0;}
+.preview3d-fallback{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;font-family:system-ui,sans-serif;font-size:12.5px;color:var(--ink-soft);}
+.yarn-list-item{display:flex;align-items:center;gap:8px;font-family:system-ui,sans-serif;font-size:12.5px;padding:4px 0;}
+.pattern-text{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;background:var(--mono-bg);border:1px solid var(--card-edge);border-radius:8px;padding:14px 16px;max-height:420px;overflow:auto;line-height:1.6;}
+.badge-ok{color:var(--good);font-weight:700;}
+.badge-warn{color:var(--bad);font-weight:700;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:820px){.two-col{grid-template-columns:1fr;}}
+.small-note{font-family:system-ui,sans-serif;font-size:11.5px;color:var(--ink-soft);margin-top:6px;}
+.customer-field{margin-bottom:10px;}
+.chat-log{max-height:260px;overflow-y:auto;border:1px solid var(--card-edge);border-radius:8px;padding:10px 12px;background:#fdfcf9;font-family:system-ui,sans-serif;font-size:12.5px;}
+.chat-log:empty::before{content:"No messages yet — run an analysis first.";color:var(--ink-soft);}
+.chat-msg{margin-bottom:10px;line-height:1.5;white-space:pre-wrap;}
+.chat-msg b{font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+.chat-user b{color:var(--accent);}
+.chat-assistant b{color:var(--good);}
+.chat-msg span{color:var(--ink);}
+/* ============================================================
+   PRINTED PATTERN — styled to match Annie's actual branded "Base Cat
+   Crochet Pattern" booklet (dark chocolate pages, cream text, bold
+   rounded display font, one section per printed page) rather than the
+   app's own light working theme above. Colors/fonts sampled directly
+   from that PDF. print-color-adjust is required or browsers silently
+   drop the dark background and it prints on plain white.
+   ============================================================ */
+@media print{
+  .no-print{display:none !important;}
+  section.panel{display:none !important;}
+  #printArea{display:block !important;}
+  body{background:#332923;}
+  @page{ margin:0.4in; }
+}
+#printArea{display:none;}
+#printArea, #printArea *{
+  -webkit-print-color-adjust:exact !important;
+  print-color-adjust:exact !important;
+  color-adjust:exact !important;
+}
+#printArea{
+  background:#332923; color:#E5CEB9;
+  font-family:'Quicksand',system-ui,sans-serif;
+}
+#printArea .pp-page{
+  background:#332923; color:#E5CEB9;
+  min-height:9.8in; padding:50px 55px;
+  page-break-after:always; box-sizing:border-box;
+  display:flex; flex-direction:column; justify-content:center;
+}
+#printArea .pp-page:last-child{ page-break-after:auto; }
+#printArea .pp-title{
+  font-family:'Baloo 2',system-ui,sans-serif; font-weight:700;
+  text-align:center; font-size:46px; line-height:1.15; color:#EAD6BE; margin:0 0 10px;
+}
+#printArea .pp-heading{
+  font-family:'Baloo 2',system-ui,sans-serif; font-weight:700;
+  text-align:center; font-size:32px; color:#EAD6BE; margin:0 0 6px;
+}
+#printArea .pp-subheading{
+  font-family:'Baloo 2',system-ui,sans-serif; font-weight:600;
+  text-align:center; font-size:22px; color:#EAD6BE; margin:0 0 10px;
+}
+#printArea .pp-note{ text-align:center; font-size:14px; color:#C7B39B; margin-bottom:16px; }
+#printArea .pp-body{ font-size:16px; line-height:1.8; max-width:640px; margin:0 auto; text-align:center; }
+#printArea ul.pp-rows{ list-style:disc; padding-left:1.3em; font-size:16px; line-height:1.85; max-width:640px; margin:10px auto; }
+#printArea ul.pp-rows li::marker{ color:#C7B39B; }
+#printArea .pp-finish{ font-size:16px; line-height:1.7; max-width:640px; margin:10px auto 0; text-align:left; }
+#printArea .pp-chart-wrap{ text-align:center; }
+#printArea .pp-chart-wrap img{ max-width:78%; max-height:6.5in; border-radius:22px; background:#FAF7F1; padding:16px; }
+#printArea .pp-model-wrap img{ display:block; margin:0 auto; max-width:62%; border-radius:22px; background:#E9E2D6; padding:14px; }
+#printArea .pp-yarn-item{ display:flex; align-items:center; gap:10px; justify-content:center; margin:6px 0; font-size:16px; }
+#printArea .pp-swatch{ width:18px; height:18px; border-radius:5px; display:inline-block; border:1px solid rgba(255,255,255,.3); }
+#printArea .part-chart{image-rendering:pixelated;max-width:100%;height:auto;border:1px solid #999;margin-bottom:8px;}
+#printArea .model-shot{display:block;max-width:280px;margin:0 auto 14px;}
+</style>
+</head>
+<body>
+<div class="wrap no-print">
+
+<header>
+  <h1>Stitch Your Pets — Internal Pattern Generator</h1>
+  <div class="sub">Internal production tool · v1 · not customer-facing · base pattern &amp; stitch counts never change, only colors do</div>
+</header>
+
+<div class="steps">
+  <button class="step-btn active" data-step="1"><span class="n">1</span>Upload Photos</button>
+  <button class="step-btn" data-step="2"><span class="n">2</span>AI Analysis</button>
+  <button class="step-btn" data-step="3"><span class="n">3</span>Paint Stitch Maps</button>
+  <button class="step-btn" data-step="4"><span class="n">4</span>Preview &amp; Pattern</button>
+</div>
+
+<!-- STEP 1: UPLOAD -->
+<section class="panel active" id="panel-1">
+  <div class="card">
+    <h2>Customer &amp; Photos</h2>
+    <div class="hint">Upload the customer's cat photos. More angles = more accurate color placement. Front and at least one side are recommended minimum.</div>
+    <div class="customer-field" style="margin-top:14px;max-width:320px;">
+      <label>Customer Name (for the pattern cover page)</label>
+      <input type="text" id="customerName" placeholder="e.g. Jamie R.">
+    </div>
+    <div class="grid2" id="uploadGrid"></div>
+  </div>
+</section>
+
+<!-- STEP 2: AI ANALYSIS -->
+<section class="panel" id="panel-2">
+  <div class="card">
+    <h2>AI Photo Analysis</h2>
+    <div class="hint">This calls the Claude API directly from your browser using your own API key (never sent anywhere else, kept in memory for this session only — check "remember" to also save it in this browser's local storage). The AI's <em>only</em> job is to look at the photos and describe coat colors and markings using your yarn palette — it never touches stitch counts or construction.</div>
+    <div class="row" style="margin-top:14px;">
+      <div style="flex:1;min-width:220px;">
+        <label>Anthropic API Key</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-...">
+      </div>
+      <div style="width:220px;">
+        <label>Model</label>
+        <input type="text" id="apiModel" value="claude-sonnet-5">
+      </div>
+      <div style="align-self:flex-end;">
+        <label style="display:inline-flex;align-items:center;gap:6px;text-transform:none;font-weight:400;"><input type="checkbox" id="rememberKey" style="width:auto;">remember key in this browser</label>
+      </div>
+    </div>
+    <div class="customer-field" style="margin-top:14px;">
+      <label>Optional: anything to tell the AI before its first look?</label>
+      <input type="text" id="initialInstructions" placeholder='e.g. "ignore the plaid blanket in the background" or "this cat has heterochromia, eye color doesn&#39;t matter"'>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button id="btnAnalyze">Analyze Photos</button>
+      <span class="hint" id="analyzeStatus"></span>
+    </div>
+    <h3>Marking Report</h3>
+    <div class="hint">Structured result from the AI. You can hand-edit this JSON before applying it to the stitch maps — nothing here touches stitch counts, only which colors get suggested where.</div>
+    <textarea id="markingReport" placeholder='{"base_color":"ginger","markings":[{"type":"bib","color":"cream","depth_rows":6},{"type":"sock","zone":"front_legs","color":"cream","rows":2}],"eye_color":"green","unseen_zones":[],"confidence":"high","notes":""}'></textarea>
+    <div class="row" style="margin-top:10px;">
+      <button id="btnApplyReport" class="secondary">Paint Stitch Maps From Report →</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Talk to the AI</h2>
+    <div class="hint">Once you've run an analysis, tell it what to fix in plain language — it keeps the photos in mind and revises the marking report above. Examples: "the belly is more cream than white," "there's a dark patch on the left ear you missed," "make the tail solid ginger, no tip." Each reply updates the Marking Report textarea above — click "Paint Stitch Maps From Report" again to push the change into the grids.</div>
+    <div id="chatLog" class="chat-log"></div>
+    <div class="row" style="margin-top:10px;">
+      <input type="text" id="chatInput" placeholder="Tell the AI what to change…" style="flex:1;min-width:200px;">
+      <button id="btnSendChat">Send</button>
+      <button id="btnResetChat" class="ghost">Reset Conversation</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Yarn Palette</h2>
+    <div class="hint">The AI (and you) can only choose colors from this list, so every result is physically crochetable. Edit to match what you actually stock.</div>
+    <table id="paletteTable">
+      <thead><tr><th></th><th>Name</th><th>Brand</th><th>Color #</th><th>Hex</th><th></th></tr></thead>
+      <tbody id="paletteBody"></tbody>
+    </table>
+    <div class="row" style="margin-top:10px;">
+      <button class="secondary small" id="btnAddColor">+ Add Color</button>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 3: PAINT -->
+<section class="panel" id="panel-3">
+  <div class="card">
+    <h2>Paint Stitch Maps</h2>
+    <div class="hint">Every stitch already exists in the base pattern — the AI (and you) only ever assign a color to a square. Click a swatch below, then click, drag-paint, or bucket-fill squares. Internally every square has a permanent ID like <code>HEAD-R08-S14</code> (you never need to see these — it's just how the software keeps the pattern and the picture in sync).</div>
+
+    <div class="part-tabs" id="partTabs"></div>
+
+    <div class="row palette-list" id="paintPalette"></div>
+
+    <div class="toolbar">
+      <button class="tool-btn active" data-tool="paint">🖌 Paint</button>
+      <button class="tool-btn" data-tool="fill">🪣 Fill Region</button>
+      <button class="tool-btn" data-tool="pan">✋ Pan</button>
+      <span style="width:1px;height:20px;background:var(--card-edge);"></span>
+      <button class="tool-btn" id="btnUndo">↶ Undo</button>
+      <button class="tool-btn" id="btnRedo">↷ Redo</button>
+      <span style="width:1px;height:20px;background:var(--card-edge);"></span>
+      <button class="tool-btn" id="zoomOut">－</button>
+      <button class="tool-btn" id="zoomReset">Reset Zoom</button>
+      <button class="tool-btn" id="zoomIn">＋</button>
+      <span style="width:1px;height:20px;background:var(--card-edge);"></span>
+      <button class="tool-btn" id="btnResetSection">Reset This Part</button>
+    </div>
+
+    <div class="grid-scroll" id="gridScroll">
+      <svg id="stitchSvg"></svg>
+    </div>
+    <div class="small-note" id="rowCountNote"></div>
+  </div>
+</section>
+
+<!-- STEP 4: PREVIEW & PATTERN -->
+<section class="panel" id="panel-4">
+  <div class="card">
+    <h2>Live Preview</h2>
+    <div class="hint">Approximate preview only, built from the same colored squares you just painted. Each round is a true ring: its circumference comes from that round's real stitch count, so the pattern's own numbers define the shape — no separate 3D model to keep in sync. Self-contained, no internet needed to view. Drag to rotate, scroll to zoom.</div>
+    <div class="preview-box">
+      <div>
+        <div class="preview3d-wrap" id="preview3dWrap"><canvas id="preview3dCanvas"></canvas></div>
+        <div class="preview3d-controls">
+          <label><input type="checkbox" id="autoRotate" checked> Auto-rotate</label>
+          <button class="tool-btn" id="btnResetView">Reset View</button>
+        </div>
+      </div>
+      <div>
+        <h3>Yarn Shopping List</h3>
+        <div id="yarnList"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Construction &amp; Assembly Notes</h2>
+    <div class="hint">Pulled from the written base pattern — these never change and aren't affected by coloring, but they're easy to lose track of, so they're included on the printed pattern below.</div>
+    <div id="constructionNotes" class="pattern-text" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Generate Pattern</h2>
+    <div class="row">
+      <button id="btnBuildPattern">Build Printable Pattern</button>
+      <button id="btnPrint" class="secondary">Print / Save as PDF</button>
+      <span class="hint" id="patternStatus"></span>
+    </div>
+    <div class="pattern-text" id="patternPreview" style="margin-top:14px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>Add to Original Pattern PDF</h2>
+    <div class="hint">Select the original "Base Cat Crochet Pattern" PDF below. This keeps every one of its existing pages exactly as-is and appends new pages at the end: the 3D rendering (front and back), then this cat's colored stitch chart + row-by-row colors for each part.</div>
+    <div class="row" style="margin-top:10px;">
+      <input type="file" id="basePatternPdfInput" accept="application/pdf">
+      <button id="btnMergePdf" class="secondary">Add Stitch Maps + 3D Render to That PDF →</button>
+    </div>
+    <div class="hint" id="mergeStatus" style="margin-top:8px;"></div>
+  </div>
+</section>
+
+</div>
+
+<!-- PRINT-ONLY AREA — entirely (re)built by buildPrintArea(), one .pp-page
+     per printed page, styled in the @media print CSS above to match the
+     real "Base Cat Crochet Pattern" booklet's look. -->
+<div id="printArea"></div>
+
+<script>
+/* ============================================================
+   STITCH MAP DATA
+   Digitized from Base Cat.pdf hand-drawn stitch charts.
+   Each array = stitch count per round, left-to-right, first
+   stitch = leftmost square of that round. These counts are the
+   only thing that ever came from the pattern; the AI/human only
+   assigns colors to positions within them.
+   ============================================================ */
+const STITCH_MAPS = {
+  head:      { label:"Head",       instances:1, rows:[8,16,24,32,40,48,48,48,48,48,48,48,48,48,42,42,36,36,32,32],
+               anatomy:"Round 1 = crown/top of head. Round 20 = neck opening (attaches to body). Safety eyes go between rounds 11 & 12, 8 stitches apart. Nose sits between rounds 14–15, ~2 stitches from the eye. Each row's middle column is the FRONT of the face — the row is a circle cut open opposite that point, so the very left and right edges of each row are the BACK of the head; anything painted there will show as two separate patches on this flat chart, one at each edge.",
+               eyeRowCenter:11, frontCenterFrac:0.5 },
+  body:      { label:"Body",       instances:1, rows:[20,27,34,41,47,57,57,57,57,57,57,51,45,45,45,45,58,58,52,52,52,52,48,48,48,38,34,34,32,32],
+               anatomy:"Round 1 = bottom/butt (rear). Round 30 = neck (attaches to head, front of chest). Back legs sew on between rounds 5–6. Tail sews to the lower back between rounds 9–10. Front legs join directly into round 16.",
+               frontCenterFrac:0.77 /* front legs join round16 at sts 29-33 & 36-40 of 45 -> centered near st 35 -> 35/45≈0.77 */ },
+  frontLegs: { label:"Front Leg", instances:2, instanceLabels:["Left Front Leg","Right Front Leg"], rows:[8,16,20,16,16,12,12,15,15,15,15,15,15,15,15,15],
+               anatomy:"Round 1 = foot (rounds 1–7 shape the foot). Round 16 = top, joins directly into body round 16.", frontCenterFrac:0.5 },
+  backLegs:  { label:"Back Leg",  instances:2, instanceLabels:["Left Back Leg","Right Back Leg"], rows:[6,12,16,16,16,8],
+               anatomy:"Round 1 = bottom of foot. Round 6 = top; sewn onto the body between rounds 5–6.", frontCenterFrac:0.5 },
+  ear:       { label:"Ear", instances:2, instanceLabels:["Left Ear","Right Ear"], rows:[3,5,7],
+               anatomy:"Worked flat (turned rows), increasing 1 stitch each side per row, then edged with sc. Sewn onto the head between rounds 3–8.", frontCenterFrac:0.5 },
+  tail:      { label:"Tail",       instances:1, rows:[6,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12,12],
+               anatomy:"Round 1 = tip of tail. Round 18 = base; sewn to the body's lower back between rounds 9–10.", frontCenterFrac:0.5 }
+};
+const PART_ORDER = ["head","body","frontLegs","backLegs","ear","tail"];
+
+/* ============================================================
+   DEFAULT YARN PALETTE (editable in the UI)
+   ============================================================ */
+let PALETTE = [
+  {id:"snow",     name:"Snow White",   brand:"Red Heart Super Saver", num:"E300.1",  hex:"#FDFDFB"},
+  {id:"cream",    name:"Cream",        brand:"Red Heart Super Saver", num:"E300.313",hex:"#F4EDDD"},
+  {id:"ginger",   name:"Ginger",       brand:"Lion Brand Vanna's Choice", num:"140", hex:"#D98A4B"},
+  {id:"ash",      name:"Ash Grey",     brand:"Lion Brand Vanna's Choice", num:"105", hex:"#9AA0A6"},
+  {id:"charcoal", name:"Charcoal",     brand:"Lion Brand Vanna's Choice", num:"149", hex:"#4A443C"},
+  {id:"black",    name:"Black",        brand:"Red Heart Super Saver", num:"E300.312",hex:"#2B2622"},
+  {id:"pink",     name:"Blush Pink",   brand:"Lion Brand Vanna's Choice", num:"101", hex:"#E3A79B"},
+  {id:"caramel",  name:"Caramel",      brand:"Lion Brand Vanna's Choice", num:"124", hex:"#B97D4B"},
+  {id:"tan",      name:"Tan",          brand:"Red Heart Super Saver", num:"E300.334",hex:"#D8C7A6"},
+];
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const uploadSlots = ["Front","Left","Right","Back","Top (optional)"];
+let photos = {}; // slot -> {dataUrl, base64, mediaType}
+let grids = {};  // key `${part}#${instance}` -> array of rows of colorId|null
+let currentPart = "head";
+let currentInstance = 0;
+let selectedColor = PALETTE[0].id;
+let currentTool = "paint";
+let zoom = 1;
+let undoStack = [];
+let redoStack = [];
+let strokeChanges = null; // active stroke batch
+
+function gridKey(part, inst){ return part + "#" + inst; }
+
+function initGrids(){
+  PART_ORDER.forEach(part=>{
+    const def = STITCH_MAPS[part];
+    for(let i=0;i<def.instances;i++){
+      const key = gridKey(part,i);
+      grids[key] = def.rows.map(count => new Array(count).fill(null));
+    }
+  });
+}
+initGrids();
+
+/* ============================================================
+   STEP NAV
+   ============================================================ */
+document.querySelectorAll(".step-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".step-btn").forEach(b=>b.classList.remove("active"));
+    document.querySelectorAll("section.panel").forEach(p=>p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-"+btn.dataset.step).classList.add("active");
+    if(btn.dataset.step==="3") renderGrid();
+    if(btn.dataset.step==="4") { renderPreview3D(); renderYarnList(); renderConstructionNotes(); }
+  });
+});
+
+/* ============================================================
+   STEP 1: UPLOAD
+   ============================================================ */
+const uploadGrid = document.getElementById("uploadGrid");
+uploadSlots.forEach(slot=>{
+  const div = document.createElement("div");
+  div.className="upload-slot";
+  div.innerHTML = `<div class="lbl">${slot}</div><img style="display:none;" id="img-${slot}"><input type="file" accept="image/*" id="file-${slot}">`;
+  uploadGrid.appendChild(div);
+  div.querySelector("input").addEventListener("change", async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const {dataUrl, base64, mediaType} = await resizeAndEncode(file, 1024);
+    photos[slot] = {dataUrl, base64, mediaType};
+    const img = div.querySelector("img");
+    img.src = dataUrl; img.style.display="block";
+  });
+});
+
+function resizeAndEncode(file, maxDim){
+  return new Promise((resolve)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onload = ()=>{
+        let {width,height} = img;
+        if(width>height && width>maxDim){ height = height*maxDim/width; width=maxDim; }
+        else if(height>maxDim){ width = width*maxDim/height; height=maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width=width; canvas.height=height;
+        canvas.getContext("2d").drawImage(img,0,0,width,height);
+        const dataUrl = canvas.toDataURL("image/jpeg",0.85);
+        resolve({dataUrl, base64:dataUrl.split(",")[1], mediaType:"image/jpeg"});
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* ============================================================
+   STEP 2: AI ANALYSIS
+   ============================================================ */
+if(localStorage.getItem("syp_apikey")){
+  document.getElementById("apiKey").value = localStorage.getItem("syp_apikey");
+  document.getElementById("rememberKey").checked = true;
+}
+document.getElementById("rememberKey").addEventListener("change", (e)=>{
+  if(!e.target.checked) localStorage.removeItem("syp_apikey");
+});
+
+function renderPaletteTable(){
+  const body = document.getElementById("paletteBody");
+  body.innerHTML="";
+  PALETTE.forEach((c,idx)=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><span class="swatch" style="background:${c.hex}"></span></td>
+      <td><input type="text" value="${c.name}" data-f="name" style="min-width:100px;"></td>
+      <td><input type="text" value="${c.brand}" data-f="brand" style="min-width:120px;"></td>
+      <td><input type="text" value="${c.num}" data-f="num" style="width:80px;"></td>
+      <td><input type="text" value="${c.hex}" data-f="hex" style="width:90px;"></td>
+      <td><button class="ghost small" data-del="${idx}">✕</button></td>`;
+    tr.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("input", ()=>{
+        c[inp.dataset.f]=inp.value;
+        if(inp.dataset.f==="hex"){ tr.querySelector(".swatch").style.background=c.hex; }
+        renderPaintPalette(); renderGrid();
+      });
+    });
+    tr.querySelector("[data-del]").addEventListener("click", ()=>{
+      PALETTE.splice(idx,1); renderPaletteTable(); renderPaintPalette();
+    });
+    body.appendChild(tr);
+  });
+}
+// A raw "c"+Date.now() id (e.g. c1753012345678) is meaningless to read back
+// in a hand-edited report or a screenshot of a bug. Asking for the name up
+// front lets the id itself be readable (e.g. "dusty-rose"), fixed for good
+// at creation time so it never drifts out from under stitches already
+// painted with it.
+function slugify(s){
+  return (s||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"-").replace(/(^-+|-+$)/g,"") || "color";
+}
+function uniqueColorId(base){
+  let id = base, n = 2;
+  const taken = new Set(PALETTE.map(c=>c.id));
+  while(taken.has(id)){ id = base+"-"+n; n++; }
+  return id;
+}
+document.getElementById("btnAddColor").addEventListener("click", ()=>{
+  const name = (prompt("Name for the new yarn color?", "") || "").trim() || "New Color";
+  const id = uniqueColorId(slugify(name));
+  PALETTE.push({id, name, brand:"", num:"", hex:"#CCCCCC"});
+  renderPaletteTable(); renderPaintPalette();
+});
+renderPaletteTable();
+
+document.getElementById("btnAnalyze").addEventListener("click", analyzePhotos);
+document.getElementById("btnSendChat").addEventListener("click", sendFollowUp);
+document.getElementById("chatInput").addEventListener("keydown", (e)=>{
+  if(e.key==="Enter"){ e.preventDefault(); sendFollowUp(); }
+});
+document.getElementById("btnResetChat").addEventListener("click", ()=>{
+  conversation = [];
+  document.getElementById("chatLog").innerHTML = "";
+  const status = document.getElementById("analyzeStatus");
+  status.textContent = "Conversation cleared. Run Analyze Photos to start again.";
+  status.className = "hint";
+});
+
+let conversation = []; // full message history sent back to Claude each turn, so it keeps photo + prior-answer context
+
+function paletteIds(){ return PALETTE.map(c=>c.id).join(", "); }
+// The AI only ever gets told bare ids like "snow" or "c1753012345678" for a
+// custom color — it never sees what that id actually looks like. This gives
+// it the name + hex alongside each id so it can actually match shades,
+// while still telling it to answer back with the id.
+function paletteDescriptions(){
+  return PALETTE.map(c=>`${c.id} = "${c.name}" (${c.hex})`).join("\n  ");
+}
+// Resolve a color the AI (or a human editing the JSON by hand) returned —
+// matches a palette id first, then falls back to a case-insensitive match
+// on the id or the display name (catches "Snow White" -> snow, "SNOW" -> snow).
+// Returns null if nothing matches, so callers can refuse rather than silently
+// writing an unknown id into the grids.
+function resolvePaletteId(value){
+  if(value===undefined || value===null || value==="") return null;
+  const key = String(value).trim().toLowerCase();
+  let hit = PALETTE.find(c=>c.id.toLowerCase()===key);
+  if(hit) return hit.id;
+  hit = PALETTE.find(c=>c.name.toLowerCase()===key);
+  return hit ? hit.id : null;
+}
+function cleanJsonText(text){
+  return (text||"").trim().replace(/^```json/,'').replace(/^```/,'').replace(/```$/,'').trim();
+}
+function logChat(role, text){
+  const log = document.getElementById("chatLog");
+  const div = document.createElement("div");
+  div.className = "chat-msg chat-"+role;
+  const label = role==="user" ? "You" : "AI";
+  const shown = text.length>500 ? text.slice(0,500)+"…" : text;
+  div.innerHTML = `<b>${label}:</b> <span></span>`;
+  div.querySelector("span").textContent = shown;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function callClaude(){
+  const key = document.getElementById("apiKey").value.trim();
+  const model = document.getElementById("apiModel").value.trim() || "claude-sonnet-5";
+  if(!key) throw new Error("Enter your API key first.");
+  if(document.getElementById("rememberKey").checked) localStorage.setItem("syp_apikey", key);
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "x-api-key": key,
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true"
+    },
+    body: JSON.stringify({ model, max_tokens: 2500, messages: conversation })
+  });
+  const data = await resp.json();
+  if(!resp.ok) throw new Error(data.error?.message || resp.statusText);
+  conversation.push({role:"assistant", content:data.content});
+  return (data.content||[]).map(b=>b.text||"").join("\n");
+}
+
+async function analyzePhotos(){
+  const status = document.getElementById("analyzeStatus");
+  const imgs = Object.entries(photos);
+  if(imgs.length===0){ status.textContent="Upload at least one photo first."; status.className="badge-warn hint"; return; }
+
+  status.textContent = "Analyzing "+imgs.length+" photo(s)…";
+  status.className = "hint";
+  document.getElementById("btnAnalyze").disabled = true;
+
+  const extra = document.getElementById("initialInstructions").value.trim();
+  const promptText = `You are helping turn photos of a real cat into a colored crochet pattern. A fixed "base cat" amigurumi pattern exists; the ONLY thing that changes per cat is yarn color placement. Your job is purely visual: look at the photos and describe this cat's coat as a structured marking report.
+
+Rules:
+- You may ONLY use these yarn ids. Answer with the id (left of "="), not the name —
+  the name/hex is just there so you know what each id actually looks like:
+  ${paletteDescriptions()}
+  Pick the closest id to what you see (e.g. orange fur -> whichever id's name/hex reads as ginger/orange).
+- Markings must use ONLY these types:
+  sock      {zone: front_legs|back_legs|all|front_left|front_right|back_left|back_right, rows: 1-6, color}
+  bib       {color, depth_rows: 3-10}            white/light chest patch
+  belly     {color}                              light underside
+  blaze     {color, width_sts: 2-8}              vertical strip up the face
+  muzzle    {color}                               chin/muzzle patch
+  mask      {color, rows: 4-10}                   darker cap over top of head
+  stripes   {zone: back|head_back|face|front_legs|back_legs|legs|tail, color, count: 1-6}  tabby banding —
+            use "face" for forehead/cheek stripes (the tabby "M" mark and the
+            lines running from it), "head_back" for stripes/marks on the BACK
+            of the head/nape (behind the crown, between and below the ears —
+            NOT the same as "back", which is the body/torso), "front_legs"/
+            "back_legs"/"legs" for leg bracelet rings, "back" for body/torso
+            banding, "tail" for tail rings
+  tail_tip  {color, rows: 2-6}
+  ear_color {color, which: both|left|right}
+  patch     {part: body|head|frontLegs|backLegs|tail|ear, instance: 0 or 1 (only
+            for frontLegs/backLegs/ear — 0=left, 1=right; omit for body/head/tail),
+            row_start, row_end (1-indexed rounds), center_frac (0-1: which side of
+            the round the patch is centered on — 0 or 1=back, 0.5=front-center,
+            0.25/0.75=either side), width_frac (0-1: how much of the round's
+            circumference it covers), color} — use ONLY for an irregular blotch
+            (calico/tortie patches, a random splotch on one side) that doesn't
+            fit any type above. Prefer the other types when they fit.
+- If the cat has visible tabby striping ANYWHERE — forehead, the back of the head/nape, cheeks, legs, torso, or tail — report it with a "stripes" marking using the matching zone. Look specifically at the back/top of the head (behind the ears, between the crown and neck) in any photo that shows it — this spot is easy to miss but tabby cats very often have marking there, and it needs its own "head_back" marking (not "back", which is the body). Don't skip face, head_back, or leg stripes just because they're finer detail than body stripes; a couple of forehead lines or a few leg rings still read clearly at this scale even if you can't capture every individual stripe.
+- List markings background-first: later markings paint OVER earlier ones (e.g. a dark mask first, then the white blaze that cuts through it).
+- Simplify honestly: this is a 10-inch plush with ~10 yarn colors, not a photograph. Capture the 3-6 markings that make this cat recognizable to its owner. Complex coats (swirled tabby, tortie, calico) should become their strongest simple equivalents.
+- Only report what you can actually SEE. List every zone no photo shows clearly in "unseen_zones", choosing from: left_side, right_side, back, belly, chest, face, tail, paws. Do NOT invent markings for unseen zones — assume they continue the base color, and let the human ask for more photos.
+- If the photos are too poor to judge something, say so in "notes" and set "confidence" accordingly.
+- Treat all photos as the same one cat, viewed from different angles — reconcile them into one consistent description rather than describing each photo separately.${extra ? `\n- Additional guidance from Annie: ${extra}` : ""}
+
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{
+  "base_color": "<yarn name for the main coat>",
+  "markings": [ ...marking objects as above... ],
+  "eye_color": "<plain-language eye color, for safety-eye selection, not yarn>",
+  "unseen_zones": ["<zones no photo shows clearly, empty list if full coverage>"],
+  "confidence": "high|medium|low",
+  "notes": "<anything the human reviewer should know>"
+}
+
+After you answer, I may send you follow-up instructions in plain language asking you to revise this report (e.g. "the belly is more cream than white") — keep these photos in mind for those follow-ups too.`;
+
+  const content = [{type:"text", text:promptText}];
+  imgs.forEach(([slot,p])=>{
+    content.push({type:"image", source:{type:"base64", media_type:p.mediaType, data:p.base64}});
+  });
+
+  conversation = [{role:"user", content}];
+  document.getElementById("chatLog").innerHTML = "";
+  logChat("user", "(sent "+imgs.length+" photo"+(imgs.length>1?"s":"")+" for first analysis"+(extra?": "+extra:"")+")");
+
+  try{
+    const text = await callClaude();
+    document.getElementById("markingReport").value = cleanJsonText(text);
+    logChat("assistant", text);
+    status.textContent = "Done. Review the marking report below, apply it, or refine it in the chat.";
+    status.className = "badge-ok hint";
+  }catch(err){
+    status.textContent = "Request failed: " + err.message + " (check API key and that this key allows browser access).";
+    status.className = "badge-warn hint";
+    logChat("assistant", "⚠ " + err.message);
+  }
+  document.getElementById("btnAnalyze").disabled=false;
+}
+
+async function sendFollowUp(){
+  const input = document.getElementById("chatInput");
+  const instruction = input.value.trim();
+  if(!instruction) return;
+  const status = document.getElementById("analyzeStatus");
+  if(conversation.length===0){
+    status.textContent = "Run Analyze Photos first so the AI has seen the cat.";
+    status.className = "badge-warn hint";
+    return;
+  }
+  const prompt = `Please revise the marking report given this instruction: "${instruction}"
+
+Return ONLY the full updated JSON, same schema as before (base_color, markings[] using only the sock/bib/belly/blaze/muzzle/mask/stripes/tail_tip/ear_color/patch marking types, eye_color, unseen_zones, confidence, notes), using only these palette ids (answer with the id, not the name):
+  ${paletteDescriptions()}
+Keep everything from the previous report that this instruction doesn't ask you to change.`;
+  conversation.push({role:"user", content:[{type:"text", text:prompt}]});
+  logChat("user", instruction);
+  input.value = "";
+  document.getElementById("btnSendChat").disabled = true;
+  status.textContent = "Thinking…";
+  status.className = "hint";
+  try{
+    const text = await callClaude();
+    document.getElementById("markingReport").value = cleanJsonText(text);
+    logChat("assistant", text);
+    status.textContent = "Updated. Review the marking report, then apply it again to repaint.";
+    status.className = "badge-ok hint";
+  }catch(err){
+    status.textContent = "Request failed: " + err.message;
+    status.className = "badge-warn hint";
+    logChat("assistant", "⚠ " + err.message);
+  }
+  document.getElementById("btnSendChat").disabled = false;
+}
+
+// Checks every color the report references against the palette before
+// anything gets painted. A slightly-off AI answer (or hand-typed JSON) with
+// an unrecognized color used to get written into the grids silently — it
+// rendered as plain white, vanished from the yarn list, and printed as a
+// raw internal id on the pattern, with no warning anywhere. Now: resolvable
+// near-misses (wrong case, or the display name instead of the id) get
+// normalized to the correct id; anything else blocks the apply so you can
+// fix it instead of getting a pattern that quietly doesn't match the report.
+function validateAndNormalizeReport(report){
+  const unresolved = [];
+  function fix(value){
+    const id = resolvePaletteId(value);
+    if(id===null){ if(value) unresolved.push(String(value)); return value; }
+    return id;
+  }
+  if(report.base_color!==undefined && report.base_color!==null && report.base_color!==""){
+    report.base_color = fix(report.base_color);
+  }
+  (report.markings||[]).forEach(m=>{
+    if(m && m.color!==undefined && m.color!==null && m.color!==""){ m.color = fix(m.color); }
+  });
+  return unresolved;
+}
+document.getElementById("btnApplyReport").addEventListener("click", ()=>{
+  let report;
+  try{ report = JSON.parse(document.getElementById("markingReport").value); }
+  catch(e){ alert("That doesn't look like valid JSON yet:\\n"+e.message); return; }
+  const unresolved = validateAndNormalizeReport(report);
+  if(unresolved.length){
+    alert("Can't apply — these colors aren't in your palette:\n" + unresolved.map(v=>`"${v}"`).join(", ") +
+      "\n\nCheck spelling/case, or add the color first. Known ids: " + paletteIds());
+    return;
+  }
+  applyMarkingReportToGrids(report);
+  document.getElementById("markingReport").value = JSON.stringify(report, null, 2); // reflect any name->id normalization
+  alert("Applied. Switch to Step 3 to review and refine the paint job.");
+});
+
+/* ============================================================
+   PAINTER — ported from cat-colormap/painter.py (Annie's Python
+   prototype). Every marking type is a small deterministic function
+   over known regions of the grids, using each part's front_center_frac
+   so markings land on the correct side of the round instead of just
+   "the middle columns." row_start/row_end are 1-indexed & inclusive,
+   matching the pattern's own round numbers (painter.py's convention).
+   ============================================================ */
+function fillAll(colorId){
+  PART_ORDER.forEach(part=>{
+    const def = STITCH_MAPS[part];
+    for(let i=0;i<def.instances;i++){
+      const g = grids[gridKey(part,i)];
+      g.forEach(row=>row.fill(colorId));
+    }
+  });
+}
+function paintRows(part, inst, rowStart, rowEnd, colorId){
+  const g = grids[gridKey(part,inst)];
+  const lo = Math.max(1, rowStart), hi = Math.min(g.length, rowEnd);
+  for(let r=lo; r<=hi; r++){
+    const row = g[r-1];
+    for(let i=0;i<row.length;i++) row[i]=colorId;
+  }
+}
+function arcIndices(n, centerFrac, widthFrac){
+  if(widthFrac >= 1.0) return Array.from({length:n},(_,k)=>k);
+  const count = Math.max(1, Math.round(n*widthFrac));
+  const start = Math.round(n*centerFrac - count/2);
+  const idx = [];
+  for(let k=0;k<count;k++) idx.push((((start+k)%n)+n)%n);
+  return idx;
+}
+function paintArc(part, inst, rowStart, rowEnd, centerFrac, widthFrac, colorId){
+  const g = grids[gridKey(part,inst)];
+  const lo = Math.max(1, rowStart), hi = Math.min(g.length, rowEnd);
+  for(let r=lo; r<=hi; r++){
+    const row = g[r-1];
+    arcIndices(row.length, centerFrac, widthFrac).forEach(i=>{ row[i]=colorId; });
+  }
+}
+
+const LEG_ZONES = {
+  front_legs:[["frontLegs",0],["frontLegs",1]], back_legs:[["backLegs",0],["backLegs",1]],
+  all:[["frontLegs",0],["frontLegs",1],["backLegs",0],["backLegs",1]],
+  legs:[["frontLegs",0],["frontLegs",1],["backLegs",0],["backLegs",1]],
+  front_left:[["frontLegs",0]], front_right:[["frontLegs",1]],
+  back_left:[["backLegs",0]], back_right:[["backLegs",1]],
+};
+const EAR_WHICH = { both:[["ear",0],["ear",1]], left:[["ear",0]], right:[["ear",1]] };
+
+function applyMarkingReportToGrids(report){
+  if(report.base_color) fillAll(report.base_color);
+  const body = STITCH_MAPS.body, head = STITCH_MAPS.head;
+  (report.markings||[]).forEach(m=>{
+    const color = m.color;
+    if(!color) return;
+    const mtype = String(m.type||"").trim().toLowerCase();
+    switch(mtype){
+      case "sock": {
+        const zone = String(m.zone||"all").trim().toLowerCase();
+        const targets = LEG_ZONES[zone];
+        if(!targets) break;
+        const rows = parseInt(m.rows,10)||3;
+        targets.forEach(([p,i])=>paintRows(p,i,1,rows,color)); // round1 = paw tip
+        break;
+      }
+      case "bib": case "chest": {
+        const depth = parseInt(m.depth_rows,10)||6;
+        const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.28;
+        const n = body.rows.length;
+        // body is bottom-up; the bib hangs down from the neck (last round)
+        paintArc("body",0, n-depth+1, n, body.frontCenterFrac, width, color);
+        break;
+      }
+      case "belly": {
+        const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.32;
+        paintArc("body",0, 6, 16, body.frontCenterFrac, width, color);
+        break;
+      }
+      case "blaze": {
+        const widthSts = parseInt(m.width_sts,10)||4;
+        // vertical strip up the front of the face, forehead to muzzle
+        for(let r=6;r<=14;r++){
+          const n = head.rows[r-1];
+          paintArc("head",0, r, r, head.frontCenterFrac, widthSts/n, color);
+        }
+        break;
+      }
+      case "muzzle": {
+        const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.22;
+        paintArc("head",0, 13, 17, head.frontCenterFrac, width, color);
+        break;
+      }
+      case "mask": {
+        // cap over the top of the head (round1=crown) — approximation, review!
+        paintRows("head",0, 1, parseInt(m.rows,10)||9, color);
+        break;
+      }
+      case "stripes": {
+        const zone = String(m.zone||"back").trim().toLowerCase();
+        const count = Math.max(1, parseInt(m.count,10)||3);
+        const widthRows = Math.max(1, parseInt(m.width_rows,10)||1);
+
+        // FACE: tabby forehead/cheek stripes (the "M" mark and the lines
+        // that run down from it) are VERTICAL marks spread side-to-side
+        // above the eyes, not horizontal rings — different geometry from
+        // the other zones below, so handled as its own branch.
+        if(zone==="face" || zone==="forehead"){
+          const rowLo=5, rowHi=10; // forehead, above the eye line (eyes ~rounds 11-12)
+          const spread = m.width_frac!==undefined?parseFloat(m.width_frac):0.34; // total spread across the forehead
+          const strokeSts = Math.max(1, parseInt(m.width_sts,10)||2);
+          for(let k=0;k<count;k++){
+            const t = count===1 ? 0.5 : k/(count-1);
+            const centerFrac = ((head.frontCenterFrac - spread/2 + spread*t) % 1 + 1) % 1;
+            const n = head.rows[rowLo-1];
+            paintArc("head",0, rowLo, rowHi, centerFrac, strokeSts/Math.max(8,n), color);
+          }
+          break;
+        }
+
+        // HEAD_BACK: the mirror image of "face" — vertical stripes on the
+        // BACK of the head/nape (crown down toward the neck, opposite the
+        // forehead). This had no zone at all before, so the AI had nowhere
+        // to put the tabby marks many cats show right behind the crown —
+        // it would either wrongly reuse "back" (which paints the BODY, not
+        // the head) or just drop them.
+        if(["head_back","back_of_head","nape","crown_back","occiput"].includes(zone)){
+          const rowLo=5, rowHi=12; // crown down toward the nape; ears attach separately at rounds 3-8 on the sides, so this doesn't collide with them
+          const spread = m.width_frac!==undefined?parseFloat(m.width_frac):0.4;
+          const strokeSts = Math.max(1, parseInt(m.width_sts,10)||2);
+          const backCenter = (head.frontCenterFrac+0.5)%1.0;
+          for(let k=0;k<count;k++){
+            const t = count===1 ? 0.5 : k/(count-1);
+            const centerFrac = ((backCenter - spread/2 + spread*t) % 1 + 1) % 1;
+            const n = head.rows[rowLo-1];
+            paintArc("head",0, rowLo, rowHi, centerFrac, strokeSts/Math.max(8,n), color);
+          }
+          break;
+        }
+
+        // LEGS: tabby "bracelet" rings — horizontal bands all the way
+        // around each targeted leg, same geometry as the tail.
+        if(["front_legs","back_legs","legs","all"].includes(zone)){
+          const legTargets = zone==="front_legs" ? [["frontLegs",0],["frontLegs",1]]
+                            : zone==="back_legs"  ? [["backLegs",0],["backLegs",1]]
+                            : [["frontLegs",0],["frontLegs",1],["backLegs",0],["backLegs",1]]; // legs|all
+          legTargets.forEach(([p,i])=>{
+            const g = grids[gridKey(p,i)];
+            const n = g.length;
+            const lo=2, hi=Math.max(lo, n-2); // skip the very paw tip and the body join
+            const span = hi-lo;
+            for(let k=0;k<count;k++){
+              const r = lo + Math.round(span*(k+0.5)/count);
+              paintArc(p, i, r, r+widthRows-1, 0.5, 1.0, color);
+            }
+          });
+          break;
+        }
+
+        let part, inst, spanStart, spanEnd, arcCenter, arcWidth;
+        if(zone==="tail"){
+          part="tail"; inst=0;
+          spanStart=3; spanEnd=STITCH_MAPS.tail.rows.length-1;
+          arcCenter=0.5; arcWidth=1.0; // full rings around the tail
+        } else if(zone==="back" || zone==="body"){
+          part="body"; inst=0;
+          spanStart=8; spanEnd=25;
+          arcCenter=(body.frontCenterFrac+0.5)%1.0; // the cat's back = opposite the front
+          arcWidth = m.width_frac!==undefined?parseFloat(m.width_frac):0.45;
+        } else break;
+        const span = spanEnd-spanStart;
+        for(let k=0;k<count;k++){
+          const r = spanStart + Math.round(span*(k+0.5)/count);
+          paintArc(part, inst, r, r+widthRows-1, arcCenter, arcWidth, color);
+        }
+        break;
+      }
+      case "tail_tip":
+        paintRows("tail",0,1,parseInt(m.rows,10)||4,color); // round1 = tip
+        break;
+      case "ear_color": {
+        const which = String(m.which||"both").trim().toLowerCase();
+        const targets = EAR_WHICH[which];
+        if(!targets) break;
+        targets.forEach(([p,i])=>paintRows(p,i,1,STITCH_MAPS.ear.rows.length,color));
+        break;
+      }
+      case "patch": {
+        const part = m.part;
+        if(!STITCH_MAPS[part]) break;
+        const inst = m.instance||0;
+        const def = STITCH_MAPS[part];
+        const rowStart = parseInt(m.row_start,10)||1;
+        const rowEnd = parseInt(m.row_end,10)||def.rows.length;
+        const centerFrac = m.center_frac!==undefined?parseFloat(m.center_frac):def.frontCenterFrac;
+        const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.25;
+        paintArc(part, inst, rowStart, rowEnd, centerFrac, width, color);
+        break;
+      }
+      // legacy fallbacks, in case an older hand-edited report uses the
+      // pre-v2 {type, zone:"chest"|"front_legs"|..., depth_rows} shape
+      default: {
+        const depth = Math.max(1, Math.min(10, m.depth_rows||3));
+        if(m.zone==="ears") EAR_WHICH.both.forEach(([p,i])=>paintRows(p,i,1,STITCH_MAPS.ear.rows.length,color));
+        else if(m.zone==="face") paintArc("head",0,13,17,head.frontCenterFrac,0.3,color);
+        else if(m.zone==="tail") paintRows("tail",0,1,depth,color);
+        break;
+      }
+    }
+  });
+  renderGrid(); renderPaintPalette();
+}
+
+/* ============================================================
+   STEP 3: PAINT
+   ============================================================ */
+const partTabs = document.getElementById("partTabs");
+function renderPartTabs(){
+  partTabs.innerHTML="";
+  PART_ORDER.forEach(part=>{
+    const def = STITCH_MAPS[part];
+    for(let i=0;i<def.instances;i++){
+      const btn = document.createElement("button");
+      btn.className = "part-tab" + (part===currentPart && i===currentInstance ? " active":"");
+      btn.textContent = def.instances>1 ? (def.instanceLabels?def.instanceLabels[i]:def.label+" "+(i+1)) : def.label;
+      btn.addEventListener("click", ()=>{ currentPart=part; currentInstance=i; renderPartTabs(); renderGrid(); });
+      partTabs.appendChild(btn);
+    }
+  });
+}
+renderPartTabs();
+
+function renderPaintPalette(){
+  const wrap = document.getElementById("paintPalette");
+  wrap.innerHTML="";
+  PALETTE.forEach(c=>{
+    const chip = document.createElement("div");
+    chip.className="palette-chip"+(c.id===selectedColor?" selected":"");
+    chip.innerHTML = `<span class="swatch" style="background:${c.hex}"></span>${c.name}`;
+    chip.addEventListener("click", ()=>{ selectedColor=c.id; renderPaintPalette(); });
+    wrap.appendChild(chip);
+  });
+  const eraser = document.createElement("div");
+  eraser.className="palette-chip"+(selectedColor===null?" selected":"");
+  eraser.innerHTML = `<span class="swatch" style="background:repeating-linear-gradient(45deg,#fff,#fff 3px,#eee 3px,#eee 6px)"></span>Eraser`;
+  eraser.addEventListener("click", ()=>{ selectedColor=null; renderPaintPalette(); });
+  wrap.appendChild(eraser);
+}
+renderPaintPalette();
+
+document.querySelectorAll(".tool-btn[data-tool]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll(".tool-btn[data-tool]").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    currentTool = btn.dataset.tool;
+    document.getElementById("gridScroll").classList.toggle("panning", currentTool==="pan");
+  });
+});
+
+function colorHex(id){
+  if(!id) return "#ffffff";
+  const c = PALETTE.find(p=>p.id===id);
+  return c?c.hex:"#ffffff";
+}
+
+const CELL = 22, GAP = 1;
+function renderGrid(){
+  const def = STITCH_MAPS[currentPart];
+  const rows = def.rows;
+  const g = grids[gridKey(currentPart,currentInstance)];
+  const maxCount = Math.max(...rows);
+  const svg = document.getElementById("stitchSvg");
+  const w = maxCount*(CELL+GAP);
+  const h = rows.length*(CELL+GAP);
+  svg.setAttribute("width", w*zoom);
+  svg.setAttribute("height", h*zoom);
+  svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+  svg.innerHTML="";
+  rows.forEach((count,r)=>{
+    const offset = Math.round((maxCount-count)/2);
+    for(let c=0;c<count;c++){
+      const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
+      rect.setAttribute("x",(offset+c)*(CELL+GAP));
+      rect.setAttribute("y",r*(CELL+GAP));
+      rect.setAttribute("width",CELL);
+      rect.setAttribute("height",CELL);
+      rect.setAttribute("class","cell");
+      rect.setAttribute("fill", colorHex(g[r][c]));
+      rect.dataset.row=r; rect.dataset.col=c;
+      const instSuffix = STITCH_MAPS[currentPart].instances>1 ? String(currentInstance+1) : "";
+      rect.dataset.id = `${partCode(currentPart)}${instSuffix}-R${String(r+1).padStart(2,'0')}-S${String(c+1).padStart(2,'0')}`;
+      svg.appendChild(rect);
+    }
+  });
+  document.getElementById("rowCountNote").textContent =
+    `${def.label} — ${rows.length} rounds, ${rows.reduce((a,b)=>a+b,0)} stitches total.` +
+    (def.anatomy ? `  ${def.anatomy}` : "") +
+    `  Stitch IDs like HEAD-R08-S14 are internal only.`;
+}
+
+function partCode(part){
+  return {head:"HEAD",body:"BODY",frontLegs:"FLEG",backLegs:"BLEG",ear:"EAR",tail:"TAIL"}[part]||part.toUpperCase();
+}
+
+/* Handlers are attached ONCE to the (permanent) svg element and look up
+   the active part at event time — attaching per-render stacked up stale
+   listeners that each painted into a previously-viewed part's grid. */
+function setupGridHandlers(){
+  const svg = document.getElementById("stitchSvg");
+  const scroller = document.getElementById("gridScroll");
+  let painting=false;
+  let panStart=null;
+
+  function activeGrid(){ return grids[gridKey(currentPart,currentInstance)]; }
+
+  function paintCell(rect){
+    const g = activeGrid();
+    const r=+rect.dataset.row, c=+rect.dataset.col;
+    const from = g[r][c];
+    if(from===selectedColor) return;
+    g[r][c]=selectedColor;
+    rect.setAttribute("fill", colorHex(selectedColor));
+    strokeChanges.push({part:currentPart,inst:currentInstance,r,c,from,to:selectedColor});
+  }
+  function floodFill(rect){
+    const g = activeGrid();
+    const rows = STITCH_MAPS[currentPart].rows;
+    const r0=+rect.dataset.row, c0=+rect.dataset.col;
+    const target = g[r0][c0];
+    if(target===selectedColor) return;
+    const stack=[[r0,c0]];
+    const seen=new Set();
+    while(stack.length){
+      const [r,c]=stack.pop();
+      const k=r+","+c;
+      if(seen.has(k)) continue;
+      if(r<0||r>=rows.length) continue;
+      if(c<0||c>=rows[r]) continue;
+      if(g[r][c]!==target) continue;
+      seen.add(k);
+      const from=g[r][c];
+      g[r][c]=selectedColor;
+      strokeChanges.push({part:currentPart,inst:currentInstance,r,c,from,to:selectedColor});
+      stack.push([r+1,c],[r-1,c],[r,c+1],[r,c-1]);
+    }
+    renderGrid();
+  }
+
+  svg.addEventListener("mousedown", (e)=>{
+    if(currentTool==="pan"){
+      panStart = {x:e.clientX, y:e.clientY, left:scroller.scrollLeft, top:scroller.scrollTop};
+      return;
+    }
+    const rect = e.target.closest("rect.cell");
+    if(!rect) return;
+    strokeChanges = [];
+    if(currentTool==="fill"){ floodFill(rect); commitStroke(); return; }
+    painting = true;
+    paintCell(rect);
+  });
+  svg.addEventListener("mousemove",(e)=>{
+    if(currentTool==="pan" && panStart){
+      scroller.scrollLeft = panStart.left - (e.clientX-panStart.x);
+      scroller.scrollTop = panStart.top - (e.clientY-panStart.y);
+      return;
+    }
+    if(!painting || currentTool!=="paint") return;
+    const rect = e.target.closest("rect.cell");
+    if(rect) paintCell(rect);
+  });
+  window.addEventListener("mouseup", ()=>{
+    if(painting) commitStroke();
+    painting=false; panStart=null;
+  });
+}
+setupGridHandlers();
+
+function commitStroke(){
+  if(strokeChanges && strokeChanges.length){
+    undoStack.push(strokeChanges);
+    redoStack=[];
+  }
+  strokeChanges=null;
+}
+
+function applyChange(change, useTo){
+  const g = grids[gridKey(change.part,change.inst)];
+  g[change.r][change.c] = useTo?change.to:change.from;
+}
+document.getElementById("btnUndo").addEventListener("click", ()=>{
+  const batch = undoStack.pop();
+  if(!batch) return;
+  batch.forEach(ch=>applyChange(ch,false));
+  redoStack.push(batch);
+  renderGrid();
+});
+document.getElementById("btnRedo").addEventListener("click", ()=>{
+  const batch = redoStack.pop();
+  if(!batch) return;
+  batch.forEach(ch=>applyChange(ch,true));
+  undoStack.push(batch);
+  renderGrid();
+});
+document.getElementById("btnResetSection").addEventListener("click", ()=>{
+  if(!confirm("Clear all colors on this part? This can be undone.")) return;
+  const g = grids[gridKey(currentPart,currentInstance)];
+  const batch=[];
+  g.forEach((row,r)=>row.forEach((val,c)=>{
+    if(val!==null){ batch.push({part:currentPart,inst:currentInstance,r,c,from:val,to:null}); row[c]=null; }
+  }));
+  if(batch.length){ undoStack.push(batch); redoStack=[]; }
+  renderGrid();
+});
+document.getElementById("zoomIn").addEventListener("click",()=>{ zoom=Math.min(3,zoom+0.25); renderGrid(); });
+document.getElementById("zoomOut").addEventListener("click",()=>{ zoom=Math.max(0.4,zoom-0.25); renderGrid(); });
+document.getElementById("zoomReset").addEventListener("click",()=>{ zoom=1; renderGrid(); });
+
+/* ============================================================
+   STEP 4: PREVIEW (3D) — ported from cat-colormap/preview3d.py
+   (Annie's Python prototype, hand-tuned against real prototype
+   photos). Self-contained hand-rolled 2D-canvas rasterizer, no
+   WebGL/Three.js/CDN needed. The shape is a genuine surface of
+   revolution: each round's real stitch count sets that ring's
+   circumference, rings are stacked with dome curvature (not flat
+   steps), rotated so each part's front_center_frac faces forward,
+   and every quad is colored from the exact painted stitch at that
+   angle — same data as the flat chart and the printed pattern.
+   ============================================================ */
+const P3D_M = 48;      // segments around each ring (render resolution)
+const P3D_W = 1.0;     // stitch width, arbitrary scene unit
+const P3D_H = 0.85;    // round height in stitch widths
+
+// pose: where each part sits, ported verbatim from preview3d.py's
+// hand-tuned POSE/EAR_POSE constants. Cat faces +z, y is up. rotX
+// tilts a part's axis (degrees, + leans forward).
+const POSE3D = {
+  body:       { part:"body",      inst:0, pos:[0,0,0],         rotX:0,   flip:false, rScale:0.78 },
+  head:       { part:"head",      inst:0, pos:[0,18.5,1.5],     rotX:0,   flip:true,  rScale:0.85,
+                nose:{ rows:[13,18], amount:1.5, widthFrac:0.3 } }, // muzzle bulge, rounds 13-18
+  frontLeft:  { part:"frontLegs", inst:0, pos:[-3.4,0,7.6],     rotX:-13, flip:false },
+  frontRight: { part:"frontLegs", inst:1, pos:[3.4,0,7.6],      rotX:-13, flip:false },
+  backLeft:   { part:"backLegs",  inst:0, pos:[-6.6,2.4,3.0],   rotX:90,  flip:false },
+  backRight:  { part:"backLegs",  inst:1, pos:[6.6,2.4,3.0],    rotX:90,  flip:false },
+  tail:       { part:"tail",      inst:0, pos:[0,2.0,-6.0],     rotX:-80, flip:true },
+};
+const EAR_POSE3D = {
+  earLeft:  { inst:0, pos:[-4.6,29.5,2.0], tiltDeg:-18 },
+  earRight: { inst:1, pos:[4.6,29.5,2.0],  tiltDeg:18 },
+};
+
+// The head's pos[1]=18.5 above was hand-tuned against preview3d.py's own
+// (slightly different) body stitch counts. Our body data has since been
+// corrected against the real written pattern, which changed the body's
+// actual built height — so that constant now sits ~4 units BELOW where
+// the body's last (neck) round actually lands, and the top few neck
+// rounds render inside the head instead of stopping at its base. That's
+// why coloring near the end of the body grid shows up as squares on the
+// head. Fix: derive the head's attach height from the real body geometry
+// (same radius/height formula as tubeQuads) instead of a stale constant,
+// and carry ears/camera along by the same delta so nothing else shifts
+// out of place.
+(function alignHeadToBodyNeck(){
+  function tubeTopY(rows, rScale){
+    const n = rows.length;
+    const raw = rows.map(c => c*P3D_W/(2*Math.PI));
+    const radii = [];
+    for(let i=0;i<n;i++){
+      const lo=Math.max(0,i-2), hi=Math.min(n-1,i+2);
+      let sum=0,cnt=0;
+      for(let k=lo;k<=hi;k++){ sum+=raw[k]; cnt++; }
+      radii.push((sum/cnt) * rScale);
+    }
+    let y = 0;
+    for(let r=1;r<n;r++){
+      const dr = Math.min(Math.abs(radii[r]-radii[r-1]), 0.78*P3D_H);
+      y += Math.sqrt(P3D_H*P3D_H - dr*dr);
+    }
+    return y;
+  }
+  const bodyNeckY = tubeTopY(STITCH_MAPS.body.rows, POSE3D.body.rScale);
+  const delta = bodyNeckY - POSE3D.head.pos[1];
+  POSE3D.head.pos[1] += delta;
+  EAR_POSE3D.earLeft.pos[1] += delta;
+  EAR_POSE3D.earRight.pos[1] += delta;
+  window.__HEAD_ALIGN_DELTA__ = delta; // used to nudge the default camera target below
+})();
+
+function rotXPt(p, deg){
+  const a = deg*Math.PI/180, x=p[0], y=p[1], z=p[2];
+  return [x, y*Math.cos(a)-z*Math.sin(a), y*Math.sin(a)+z*Math.cos(a)];
+}
+function rotZPt(p, deg){
+  const a = deg*Math.PI/180, x=p[0], y=p[1], z=p[2];
+  return [x*Math.cos(a)-y*Math.sin(a), x*Math.sin(a)+y*Math.cos(a), z];
+}
+
+/* Skin a rounds-worked part into world-space quads. Rings are sampled
+   at M segments; segment colors come from the stitch at that fraction
+   of the round, rotated so front_center_frac faces +z. flip=true
+   builds the part with round1 at the top (head hangs down from its
+   magic ring; tail tip points up). */
+function tubeQuads(pose){
+  const part = pose.part, inst = pose.inst;
+  const rows = STITCH_MAPS[part].rows;
+  const n = rows.length;
+  const g = grids[gridKey(part, inst)];
+  const frontFrac = STITCH_MAPS[part].frontCenterFrac;
+
+  const raw = rows.map(c => c*P3D_W/(2*Math.PI));
+  const radii = [];
+  for(let i=0;i<n;i++){
+    const lo=Math.max(0,i-2), hi=Math.min(n-1,i+2);
+    let sum=0,cnt=0;
+    for(let k=lo;k<=hi;k++){ sum+=raw[k]; cnt++; }
+    radii.push((sum/cnt) * (pose.rScale!==undefined?pose.rScale:1.0));
+  }
+  // fabric row height lies along the SURFACE: fast radius changes
+  // (increase/decrease rounds) climb less vertically — this is what
+  // turns stacked rings into domes instead of stepped cylinders.
+  const ys=[0.0];
+  for(let r=1;r<n;r++){
+    const dr = Math.min(Math.abs(radii[r]-radii[r-1]), 0.78*P3D_H);
+    ys.push(ys[ys.length-1] + Math.sqrt(P3D_H*P3D_H - dr*dr));
+  }
+  if(pose.flip){
+    const top = ys[ys.length-1];
+    for(let i=0;i<ys.length;i++) ys[i] = top - ys[i];
+  }
+
+  const off = Math.PI/2 - frontFrac*2*Math.PI;
+  const nose = pose.nose;
+  const rings = [];
+  for(let r=0;r<n;r++){
+    const pts=[], cols=[];
+    const cnt = rows[r];
+    for(let s=0;s<P3D_M;s++){
+      const frac = s/P3D_M;
+      const th = frac*2*Math.PI + off;
+      let rad = radii[r];
+      if(nose && nose.rows[0] <= r+1 && r+1 <= nose.rows[1]){
+        let d = Math.abs(frac - frontFrac);
+        d = Math.min(d, 1-d);
+        const half = nose.widthFrac/2;
+        if(d < half){
+          const r0=nose.rows[0], r1=nose.rows[1];
+          const rowW = Math.sin(Math.PI*(r+1-r0)/(r1-r0+1));
+          rad += nose.amount * Math.cos(Math.PI*d/half/2) * rowW;
+        }
+      }
+      pts.push([rad*Math.cos(th), ys[r], rad*Math.sin(th)]);
+      const idx = Math.floor(frac*cnt) % cnt;
+      cols.push(colorHex(g[r][idx]));
+    }
+    rings.push([pts,cols]);
+  }
+
+  // Round 1 of every part is a true closed magic-ring tip (crown, paw tip,
+  // tail tip, butt) with nothing attached beyond it, so it gets a pinched
+  // cap that bulges slightly outward to close the tube. The LAST round of
+  // every part, by contrast, is always the one that sews onto another part
+  // (neck->head, shoulder/hip->body, tail base->body) — bulging it outward
+  // too would push it past the seam and into the neighboring part, which is
+  // exactly what made body-top stitches render on top of the head. So the
+  // last round gets a flush cap (no bulge) instead.
+  function cap(ring, neighborY, flush){
+    const pts=ring[0], cols=ring[1];
+    const cy = pts[0][1];
+    const bulge = flush ? 0 : (neighborY > cy ? -0.6*P3D_H : 0.6*P3D_H);
+    return [pts.map(p=>[p[0]*1e-3, cy+bulge, p[2]*1e-3]), cols];
+  }
+  const allRings = [cap(rings[0], rings[1][0][0][1], false), ...rings, cap(rings[n-1], rings[n-2][0][0][1], true)];
+
+  const quads=[];
+  for(let r=0;r<allRings.length-1;r++){
+    const pa=allRings[r][0], ca=allRings[r][1];
+    const pb=allRings[r+1][0];
+    for(let s=0;s<P3D_M;s++){
+      const s2=(s+1)%P3D_M;
+      let quad=[pa[s],pa[s2],pb[s2],pb[s]];
+      if(pose.flip) quad = quad.slice().reverse(); // keep outward winding consistent
+      quad = quad.map(p => rotZPt(rotXPt(p,pose.rotX), pose.rotZ||0));
+      quad = quad.map(p => [p[0]+pose.pos[0], p[1]+pose.pos[1], p[2]+pose.pos[2]]);
+      quads.push([quad, ca[s]]);
+    }
+  }
+  return quads;
+}
+
+/* Ears are flat dc rows (3-5-7 wide), built as a two-sided rectangle
+   of cells, tilted outward. */
+function earQuads(pose){
+  const quads=[];
+  const cw=1.55, ch=2.0; // dc stitches are wider/taller; ears read big
+  const tilt = pose.tiltDeg*Math.PI/180;
+  const rows = STITCH_MAPS.ear.rows;
+  const n = rows.length;
+  const g = grids[gridKey("ear", pose.inst)];
+  for(let r=0;r<n;r++){
+    const cnt = rows[r];
+    const y0 = (n-1-r)*ch; // row1 = tip, at the top
+    for(let i=0;i<cnt;i++){
+      const x0 = (i - cnt/2)*cw;
+      const quad = [[x0,y0,0],[x0+cw,y0,0],[x0+cw,y0+ch,0],[x0,y0+ch,0]];
+      const out = quad.map(([x,y,z])=>{
+        const xr = x*Math.cos(tilt) - z*Math.sin(tilt);
+        const zr = x*Math.sin(tilt) + z*Math.cos(tilt);
+        return [xr+pose.pos[0], y+pose.pos[1], zr+pose.pos[2]];
+      });
+      const color = colorHex(g[r][i]);
+      quads.push([out, color]);
+      quads.push([out.slice().reverse(), color]); // back face
+    }
+  }
+  return quads;
+}
+
+function build3DScene(){
+  let quads = [];
+  Object.values(POSE3D).forEach(pose => { quads = quads.concat(tubeQuads(pose)); });
+  Object.values(EAR_POSE3D).forEach(pose => { quads = quads.concat(earQuads(pose)); });
+  const verts=[], colors=[];
+  quads.forEach(([q,c])=>{ q.forEach(p=>verts.push(p[0],p[1],p[2])); colors.push(c); });
+  return { verts, colors };
+}
+
+// ---- renderer: painter's-algorithm 2D canvas rasterizer ----
+let scene3d = null;
+let cam3d = { yaw: 3.45, pitch: 0.12, dist: 90 };
+let dirty3d = true;
+const CAM3D_CY = 17 + (window.__HEAD_ALIGN_DELTA__||0); // look-at height, nudged to match the corrected head position
+const shadeCache3d = {};
+
+function shaded3d(hex, k){
+  const band = Math.round(k*24);
+  const key = hex+band;
+  if(shadeCache3d[key]) return shadeCache3d[key];
+  const f = 0.62 + 0.38*(band/24);
+  const r = Math.round(parseInt(hex.slice(1,3),16)*f);
+  const g = Math.round(parseInt(hex.slice(3,5),16)*f);
+  const b = Math.round(parseInt(hex.slice(5,7),16)*f);
+  return (shadeCache3d[key] = `rgb(${r},${g},${b})`);
+}
+
+function render3d(){
+  const cv = document.getElementById("preview3dCanvas");
+  if(!cv || !scene3d) return;
+  const ctx = cv.getContext("2d");
+  const w = cv.clientWidth||400, h = cv.clientHeight||400, dpr = window.devicePixelRatio||1;
+  if(cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){
+    cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const V = scene3d.verts, colorsArr = scene3d.colors;
+  const N = colorsArr.length;
+  const cy0=Math.cos(cam3d.yaw), sy0=Math.sin(cam3d.yaw);
+  const cp=Math.cos(cam3d.pitch), sp=Math.sin(cam3d.pitch);
+  const f=620, cx=w/2, cyy=h/2;
+  const lx=0.45, ly=0.75, lz=0.5;
+
+  const px=new Float32Array(N*4), py=new Float32Array(N*4);
+  const depth=new Float32Array(N), shade=new Float32Array(N);
+
+  for(let q=0;q<N;q++){
+    let zsum=0;
+    for(let k=0;k<4;k++){
+      const i=(q*4+k)*3;
+      const x=V[i], y=V[i+1]-CAM3D_CY, z=V[i+2];
+      const xr = x*cy0+z*sy0, zr = -x*sy0+z*cy0;
+      const yr = y*cp - zr*sp, zr2 = y*sp + zr*cp;
+      const zc = zr2 + cam3d.dist;
+      const s = f/zc;
+      px[q*4+k]=cx+xr*s; py[q*4+k]=cyy-yr*s;
+      zsum+=zc;
+    }
+    depth[q]=zsum;
+    // no backface culling: winding varies per part; back-to-front sort
+    // means exterior faces always overpaint interior ones
+    const i0=q*12, i1=q*12+3, i3=q*12+9;
+    const ux=V[i1]-V[i0], uy=V[i1+1]-V[i0+1], uz=V[i1+2]-V[i0+2];
+    const vx=V[i3]-V[i0], vy=V[i3+1]-V[i0+1], vz=V[i3+2]-V[i0+2];
+    const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+    const nl = Math.hypot(nx,ny,nz)||1;
+    shade[q]=Math.abs(nx*lx+ny*ly+nz*lz)/nl;
+  }
+
+  const order=[];
+  for(let q=0;q<N;q++) if(depth[q]>0) order.push(q);
+  order.sort((a,b)=>depth[b]-depth[a]);
+
+  for(let k=0;k<order.length;k++){
+    const q=order[k];
+    ctx.fillStyle = shaded3d(colorsArr[q], shade[q]);
+    ctx.beginPath();
+    ctx.moveTo(px[q*4],py[q*4]);
+    ctx.lineTo(px[q*4+1],py[q*4+1]);
+    ctx.lineTo(px[q*4+2],py[q*4+2]);
+    ctx.lineTo(px[q*4+3],py[q*4+3]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth=0.6; ctx.stroke(); // hairline hides seams
+  }
+  dirty3d=false;
+}
+
+let raf3d=null;
+function loop3d(){
+  raf3d = requestAnimationFrame(loop3d);
+  if(document.getElementById("autoRotate")?.checked){ cam3d.yaw += 0.0035; dirty3d=true; }
+  if(dirty3d) render3d();
+}
+
+function attachOrbit3d(){
+  const cv = document.getElementById("preview3dCanvas");
+  if(!cv || cv.dataset.orbitAttached) return;
+  cv.dataset.orbitAttached = "1";
+  let drag=null;
+  cv.addEventListener("pointerdown", e=>{ drag={x:e.clientX,y:e.clientY}; cv.classList.add("dragging"); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointermove", e=>{
+    if(!drag) return;
+    cam3d.yaw += (e.clientX-drag.x)*0.008;
+    cam3d.pitch = Math.min(1.2, Math.max(-0.6, cam3d.pitch + (e.clientY-drag.y)*0.006));
+    drag={x:e.clientX,y:e.clientY};
+    dirty3d=true;
+  });
+  cv.addEventListener("pointerup", ()=>{ drag=null; cv.classList.remove("dragging"); });
+  cv.addEventListener("pointerleave", ()=>{ drag=null; cv.classList.remove("dragging"); });
+  cv.addEventListener("wheel", e=>{
+    e.preventDefault();
+    cam3d.dist = Math.min(220, Math.max(45, cam3d.dist*(1+e.deltaY*0.001)));
+    dirty3d=true;
+  }, {passive:false});
+  window.addEventListener("resize", ()=>{ dirty3d=true; });
+}
+
+function renderPreview3D(){
+  scene3d = build3DScene();
+  dirty3d = true;
+  attachOrbit3d();
+  if(!raf3d) loop3d(); else render3d();
+}
+document.getElementById("btnResetView")?.addEventListener("click", ()=>{
+  cam3d.yaw = 3.45; cam3d.pitch = 0.12; cam3d.dist = 90; dirty3d=true;
+});
+
+function renderYarnList(){
+  const used = {};
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id) used[id]=(used[id]||0)+1; })));
+  const div = document.getElementById("yarnList");
+  div.innerHTML="";
+  // Belt-and-braces: a grid can end up holding a color id that's no longer in
+  // the palette (usually because the color was deleted from the table after
+  // painting with it). Those stitches quietly render white and used to just
+  // disappear from this list with no explanation — flag them instead.
+  const unknownIds = Object.keys(used).filter(id=>!PALETTE.some(p=>p.id===id));
+  if(unknownIds.length){
+    const warn = document.createElement("div");
+    warn.className = "hint badge-warn";
+    warn.textContent = `⚠ ${unknownIds.length} painted color id(s) aren't in your palette anymore (probably deleted after painting): ${unknownIds.join(", ")}. Those stitches render white and won't appear below or in the yarn shopping list — repaint them or re-add the color.`;
+    div.appendChild(warn);
+  }
+  if(Object.keys(used).length===0){ div.innerHTML += '<div class="hint">No colors painted yet.</div>'; return; }
+  Object.keys(used).sort((a,b)=>used[b]-used[a]).forEach(id=>{
+    const c = PALETTE.find(p=>p.id===id);
+    if(!c) return;
+    const item = document.createElement("div");
+    item.className="yarn-list-item";
+    item.innerHTML = `<span class="swatch" style="background:${c.hex}"></span><b>${c.name}</b> — ${c.brand} ${c.num} <span class="hint">(${used[id]} sts)</span>`;
+    div.appendChild(item);
+  });
+}
+
+/* ============================================================
+   CONSTRUCTION NOTES
+   Non-color facts pulled from the written base pattern (Copy of
+   Base cat crochet pattern.pdf) — foundation/shaping details and
+   assembly instructions that never change with coloring, but are
+   easy to lose track of. Included on the printed pattern too.
+   ============================================================ */
+const CONSTRUCTION_NOTES = [
+  "Body Round 1 starts from ch9 (not a magic ring): skip 1, 7sc, 4sc in the last st, then 6sc down the other side of the chain, 3sc in the last st [20].",
+  "Body Round 5 is worked in BLO (back loop only).",
+  "Front legs join directly into Body Round 16 with slip stitches (5 slst each side) rather than being sewn on afterward.",
+  "Back legs are sewn onto the body between rounds 5–6, and should sit 2–3 rounds away from the front legs.",
+  "Ears are sewn onto the top of the head between rounds 3–8.",
+  "Tail is sewn to the lower back of the body between rounds 9–10.",
+  "Safety eyes (20mm) go between head rounds 11 & 12, 8 stitches apart, inserted before finishing stuffing the head.",
+  "Nose is embroidered between head rounds 14–15, ~2 stitches from the eye, using small triangular stitches.",
+  "Optional finishing embroidery: eye-dent shaping, smile line, and whiskers — all worked after assembly, see full base pattern for exact stitch-by-stitch placement.",
+  "Stuff gradually as you go; stuff each part firmly before closing/joining."
+];
+function renderConstructionNotes(){
+  const div = document.getElementById("constructionNotes");
+  if(!div) return;
+  div.textContent = CONSTRUCTION_NOTES.map(n=>"• "+n).join("\n");
+}
+
+/* ============================================================
+   PATTERN GENERATION
+   ============================================================ */
+function runLengthEncodeRow(row){
+  const segs=[];
+  let i=0;
+  while(i<row.length){
+    let j=i;
+    while(j<row.length && row[j]===row[i]) j++;
+    segs.push({id:row[i], count:j-i});
+    i=j;
+  }
+  return segs;
+}
+function colorLabel(id){
+  if(!id) return "?? (uncolored)";
+  const c = PALETTE.find(p=>p.id===id);
+  return c ? c.name : `?? unknown color id "${id}" (not in palette — check the yarn list warning)`;
+}
+function buildPatternText(){
+  let out = "";
+  const customer = document.getElementById("customerName").value || "(unnamed)";
+  out += `STITCH YOUR PETS CRAFTS — CUSTOM CROCHET PATTERN\nCustomer: ${customer}\nGenerated: ${new Date().toLocaleDateString()}\n`;
+  out += `\nThe crochet construction below is unchanged from the base pattern.\nOnly color changes have been inserted. Stitch counts in [ ] must match the base pattern.\n`;
+  out += `\nCONSTRUCTION & ASSEMBLY NOTES\n-----------------------------\n`;
+  out += CONSTRUCTION_NOTES.map(n=>"• "+n).join("\n") + "\n";
+  PART_ORDER.forEach(part=>{
+    const def = STITCH_MAPS[part];
+    for(let i=0;i<def.instances;i++){
+      const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[i]:def.label+" "+(i+1)) : def.label;
+      out += `\n\n${label.toUpperCase()}\n${"-".repeat(label.length)}\n`;
+      const g = grids[gridKey(part,i)];
+      g.forEach((row,r)=>{
+        const segs = runLengthEncodeRow(row);
+        const text = segs.map(s=>`${s.count} sc ${colorLabel(s.id)}`).join(", ");
+        out += `Rnd ${r+1}: ${text} [${row.length}]\n`;
+      });
+    }
+  });
+  return out;
+}
+document.getElementById("btnBuildPattern").addEventListener("click", ()=>{
+  const text = buildPatternText();
+  document.getElementById("patternPreview").textContent = text;
+  const missing = Object.values(grids).some(g=>g.some(row=>row.some(c=>c===null)));
+  const status = document.getElementById("patternStatus");
+  status.textContent = missing ? "⚠ Some stitches are still uncolored (shown as \"?? (uncolored)\")." : "✓ Fully colored.";
+  status.className = missing ? "badge-warn hint" : "badge-ok hint";
+  buildPrintArea();
+});
+document.getElementById("btnPrint").addEventListener("click", ()=>{
+  if(!document.getElementById("patternPreview").textContent){
+    document.getElementById("btnBuildPattern").click();
+  }
+  window.print();
+});
+// Rasterizes one part's painted grid to a small offscreen canvas — same
+// cell layout/centering as the live SVG editor (renderGrid), just drawn
+// directly onto a <canvas> so it can go into an <img> on the printed page
+// instead of needing the interactive SVG.
+function renderPartGridCanvas(part, inst, cellSize){
+  const def = STITCH_MAPS[part];
+  const rows = def.rows;
+  const g = grids[gridKey(part, inst)];
+  const gap = 1;
+  const maxCount = Math.max(...rows);
+  const w = maxCount*(cellSize+gap), h = rows.length*(cellSize+gap);
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0,0,w,h);
+  rows.forEach((count,r)=>{
+    const offset = Math.round((maxCount-count)/2);
+    for(let c=0;c<count;c++){
+      const x = (offset+c)*(cellSize+gap), y = r*(cellSize+gap);
+      ctx.fillStyle = colorHex(g[r][c]);
+      ctx.fillRect(x, y, cellSize, cellSize);
+      ctx.strokeStyle = "#c9c2b0";
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(x+0.25, y+0.25, cellSize-0.5, cellSize-0.5);
+    }
+  });
+  return canvas;
+}
+// Grabs a still image of the 3D model for the printed pattern. Always uses
+// the same canonical camera angle (the "Reset View" position) so the shot
+// looks the same every time regardless of how the user last left it spinning
+// or zoomed — then puts the live view back exactly as it was. Pass
+// Math.PI as yawOffset to spin 180° for a back view of the same pose.
+function capture3DSnapshotDataURL(yawOffset){
+  if(!scene3d) scene3d = build3DScene();
+  if(!scene3d) return null;
+  const savedCam = {yaw:cam3d.yaw, pitch:cam3d.pitch, dist:cam3d.dist};
+  cam3d.yaw = 3.45 + (yawOffset||0); cam3d.pitch = 0.12; cam3d.dist = 90;
+  render3d();
+  const cv = document.getElementById("preview3dCanvas");
+  const url = cv ? cv.toDataURL("image/png") : null;
+  cam3d.yaw = savedCam.yaw; cam3d.pitch = savedCam.pitch; cam3d.dist = savedCam.dist;
+  dirty3d = true; // repaint the live view back on the next frame
+  return url;
+}
+// Print output is rebuilt straight from the grids/scene each time (images +
+// per-round text), not from the plain-text preview blob, so it's the one
+// argument-free entry point now.
+// Small DOM builders so buildPrintArea reads like the page list it produces.
+function ppEl(tag, cls, html){
+  const e = document.createElement(tag);
+  if(cls) e.className = cls;
+  if(html!==undefined) e.innerHTML = html;
+  return e;
+}
+function ppPage(...children){
+  const d = document.createElement("div");
+  d.className = "pp-page";
+  children.forEach(c=>{ if(c) d.appendChild(c); });
+  return d;
+}
+
+// Rebuilds #printArea as a sequence of full pages styled after Annie's real
+// "Base Cat Crochet Pattern" booklet: cover -> finished-cat render -> yarn +
+// construction notes -> one [colored chart page, then Row-by-row PATTERN
+// page] per body part -> thank-you. The real booklet shows a WIP photo of
+// each part before its round-by-round text; the colored stitch chart is
+// this pattern's equivalent (a picture of what that part looks like), since
+// there's no physical prototype to photograph for a one-off custom cat.
+function buildPrintArea(){
+  const customer = document.getElementById("customerName").value || "(unnamed)";
+  const area = document.getElementById("printArea");
+  area.innerHTML = "";
+
+  // COVER
+  area.appendChild(ppPage(
+    ppEl("div","pp-title", `${customer}'s<br>Custom Crochet Cat Pattern`),
+    ppEl("div","pp-note", `Stitch Your Pets Crafts · Generated ${new Date().toLocaleDateString()}`),
+    ppEl("div","pp-body", `Built on the base cat pattern's unchanged construction — only the yarn colors below are customized for this cat.`)
+  ));
+
+  // FINISHED CAT (3D render)
+  const snap = capture3DSnapshotDataURL();
+  const modelPage = ppPage(ppEl("div","pp-heading","Finished Cat"));
+  if(snap){
+    const wrap = ppEl("div","pp-model-wrap", `<img src="${snap}">`);
+    modelPage.appendChild(wrap);
+  }else{
+    modelPage.appendChild(ppEl("div","pp-body","(Open the Live Preview in Step 4 once, then rebuild the pattern, to include a rendering here.)"));
+  }
+  area.appendChild(modelPage);
+
+  // YARN COLORS
+  const used = {};
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id) used[id]=true; })));
+  const yarnItems = Object.keys(used).map(id=>{
+    const c = PALETTE.find(p=>p.id===id);
+    return c ? `<div class="pp-yarn-item"><span class="pp-swatch" style="background:${c.hex}"></span>${c.name} — ${c.brand} ${c.num}</div>` : "";
+  }).join("");
+  area.appendChild(ppPage(
+    ppEl("div","pp-heading","Yarn Colors"),
+    ppEl("div","", yarnItems || `<div class="pp-body">No colors painted yet.</div>`)
+  ));
+
+  // CONSTRUCTION & ASSEMBLY NOTES
+  area.appendChild(ppPage(
+    ppEl("div","pp-heading","Construction &amp; Assembly Notes"),
+    ppEl("ul","pp-rows", CONSTRUCTION_NOTES.map(n=>`<li>${n}</li>`).join(""))
+  ));
+
+  // PER-PART: chart page, then PATTERN page (matches the real booklet's
+  // "photo of the piece" -> "PATTERN / Part Name (xN)" pairing)
+  PART_ORDER.forEach(part=>{
+    const def = STITCH_MAPS[part];
+    for(let i=0;i<def.instances;i++){
+      const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[i]:def.label+" "+(i+1)) : def.label;
+      const g = grids[gridKey(part,i)];
+
+      const canvas = renderPartGridCanvas(part, i, 12);
+      area.appendChild(ppPage(
+        ppEl("div","pp-heading",label),
+        ppEl("div","pp-chart-wrap", `<img src="${canvas.toDataURL("image/png")}">`)
+      ));
+
+      const rowsHtml = g.map((row,r)=>{
+        const segs = runLengthEncodeRow(row);
+        const text = segs.map(s=>`${s.count} sc ${colorLabel(s.id)}`).join(", ");
+        return `<li>Row ${r+1}: ${text} [${row.length}]</li>`;
+      }).join("");
+      const workedNote = part==="ear" ? "(Worked in turned rows)" : "(Worked in continuous rounds)";
+      area.appendChild(ppPage(
+        ppEl("div","pp-heading","Pattern"),
+        ppEl("div","pp-subheading", def.instances>1 ? label : label),
+        ppEl("div","pp-note", workedNote),
+        ppEl("ul","pp-rows", rowsHtml)
+      ));
+    }
+  });
+
+  // THANK YOU
+  area.appendChild(ppPage(
+    ppEl("div","pp-title","Thank You"),
+    ppEl("div","pp-body", `Made for ${customer}. This pattern is for personal use only.`)
+  ));
+}
+
+/* ============================================================
+   ADD TO ORIGINAL PATTERN PDF
+   Keeps every existing page of Annie's real base-pattern PDF byte-for-byte
+   (loaded via pdf-lib, not recreated), and appends new pages after them:
+   the 3D rendering (front + back), then each part's colored stitch chart
+   with its row-by-row colors. This is a literal PDF merge, not a lookalike
+   rebuild — that's what makes this different from "Print / Save as PDF"
+   above, which only ever produces the app's OWN styled pages.
+   ============================================================ */
+function dataUrlToUint8Array(dataUrl){
+  const base64 = dataUrl.split(",")[1];
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+// Greedy word-wrap using the PDF font's own metrics, since pdf-lib doesn't
+// wrap text for you — a row with several color segments can easily run
+// wider than the page.
+function wrapPdfText(font, text, size, maxWidth){
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach(w=>{
+    const candidate = line ? line+" "+w : w;
+    if(font.widthOfTextAtSize(candidate, size) > maxWidth && line){
+      lines.push(line);
+      line = w;
+    }else{
+      line = candidate;
+    }
+  });
+  if(line) lines.push(line);
+  return lines;
+}
+async function mergeIntoBasePattern(){
+  const status = document.getElementById("mergeStatus");
+  const fileInput = document.getElementById("basePatternPdfInput");
+  const file = fileInput.files && fileInput.files[0];
+  if(!file){ status.textContent = "Select the base pattern PDF first."; status.className = "hint badge-warn"; return; }
+  if(typeof PDFLib === "undefined"){ status.textContent = "PDF library failed to load (needs internet the first time) — check your connection and retry."; status.className = "hint badge-warn"; return; }
+
+  const btn = document.getElementById("btnMergePdf");
+  btn.disabled = true;
+  status.textContent = "Reading base pattern PDF…";
+  status.className = "hint";
+
+  try{
+    const { PDFDocument, StandardFonts, rgb } = PDFLib;
+    const baseBytes = await file.arrayBuffer();
+    const pdfDoc = await PDFDocument.load(baseBytes, {ignoreEncryption:true});
+
+    const existingPages = pdfDoc.getPages();
+    let pageW = 1500, pageH = 2250; // matches Annie's real pattern's own page size
+    if(existingPages.length){
+      const size = existingPages[existingPages.length-1].getSize();
+      pageW = size.width; pageH = size.height;
+    }
+    const margin = pageW*0.06;
+    const bg = rgb(0.2,0.161,0.137);      // #332923, sampled from the real PDF's pages
+    const fg = rgb(0.898,0.808,0.725);    // #E5CEB9, sampled from the real PDF's text
+    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+    function newPage(){
+      const p = pdfDoc.addPage([pageW, pageH]);
+      p.drawRectangle({x:0,y:0,width:pageW,height:pageH,color:bg});
+      return p;
+    }
+    function centeredTitle(page, text, y, size){
+      const w = fontBold.widthOfTextAtSize(text, size);
+      page.drawText(text, {x:(pageW-w)/2, y, size, font:fontBold, color:fg});
+    }
+    async function embedDataUrlPng(dataUrl){
+      return pdfDoc.embedPng(dataUrlToUint8Array(dataUrl));
+    }
+
+    status.textContent = "Rendering 3D front/back views…";
+    const customer = document.getElementById("customerName").value || "(unnamed)";
+
+    // FINISHED CAT — front + back, side by side
+    const frontUrl = capture3DSnapshotDataURL(0);
+    const backUrl = capture3DSnapshotDataURL(Math.PI);
+    if(frontUrl && backUrl){
+      const page = newPage();
+      centeredTitle(page, "Finished Cat — Front & Back", pageH-margin-30, 34);
+      centeredTitle(page, customer, pageH-margin-70, 18);
+      const boxW = (pageW - margin*2 - 40)/2;
+      const frontImg = await embedDataUrlPng(frontUrl);
+      const backImg = await embedDataUrlPng(backUrl);
+      const imgY = pageH/2 - boxW/2;
+      page.drawImage(frontImg, {x:margin, y:imgY, width:boxW, height:boxW});
+      page.drawImage(backImg, {x:margin+boxW+40, y:imgY, width:boxW, height:boxW});
+      page.drawText("Front", {x:margin+boxW/2-20, y:imgY-28, size:20, font:fontBold, color:fg});
+      page.drawText("Back", {x:margin+boxW+40+boxW/2-18, y:imgY-28, size:20, font:fontBold, color:fg});
+    }
+
+    // PER-PART: colored chart + row-by-row colors
+    for(const part of PART_ORDER){
+      const def = STITCH_MAPS[part];
+      for(let i=0;i<def.instances;i++){
+        const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[i]:def.label+" "+(i+1)) : def.label;
+        status.textContent = "Adding "+label+"…";
+        const g = grids[gridKey(part,i)];
+        const canvas = renderPartGridCanvas(part, i, 14);
+        const chartDataUrl = canvas.toDataURL("image/png");
+        const chartImg = await embedDataUrlPng(chartDataUrl);
+
+        const page = newPage();
+        centeredTitle(page, label, pageH-margin-30, 34);
+
+        // fit the chart into the top ~42% of the content area, preserving
+        // its aspect ratio so square/round stitches don't stretch
+        const availW = pageW - margin*2;
+        const maxImgH = pageH*0.40;
+        let iw = availW, ih = iw*(canvas.height/canvas.width);
+        if(ih > maxImgH){ ih = maxImgH; iw = ih*(canvas.width/canvas.height); }
+        const imgX = (pageW-iw)/2, imgY = pageH-margin-90-ih;
+        page.drawImage(chartImg, {x:imgX, y:imgY, width:iw, height:ih});
+
+        // row-by-row colors below the chart, wrapped and paginated so a
+        // long part (e.g. the 30-round body) can't run off the page
+        let cursorY = imgY - 40;
+        let curPage = page;
+        const lineSize = 15, lineGap = 20, bottomLimit = margin;
+        g.forEach((row,r)=>{
+          const segs = runLengthEncodeRow(row);
+          const text = `Row ${r+1}: ` + segs.map(s=>`${s.count} sc ${colorLabel(s.id)}`).join(", ") + ` [${row.length}]`;
+          const lines = wrapPdfText(fontReg, text, lineSize, availW);
+          lines.forEach(line=>{
+            if(cursorY < bottomLimit){
+              curPage = newPage();
+              centeredTitle(curPage, label+" (cont.)", pageH-margin-30, 26);
+              cursorY = pageH-margin-90;
+            }
+            curPage.drawText(line, {x:margin, y:cursorY, size:lineSize, font:fontReg, color:fg});
+            cursorY -= lineGap;
+          });
+        });
+      }
+    }
+
+    status.textContent = "Saving merged PDF…";
+    const outBytes = await pdfDoc.save();
+    const blob = new Blob([outBytes], {type:"application/pdf"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = (customer.replace(/[^a-z0-9]+/gi,"_") || "custom_cat") + "_Pattern_With_Stitch_Maps.pdf";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 5000);
+
+    status.textContent = "✓ Done — downloaded with " + existingPages.length + " original page(s) plus the new stitch map/3D pages.";
+    status.className = "hint badge-ok";
+  }catch(err){
+    status.textContent = "Failed: " + err.message;
+    status.className = "hint badge-warn";
+  }
+  btn.disabled = false;
+}
+document.getElementById("btnMergePdf").addEventListener("click", mergeIntoBasePattern);
+
+/* init */
+renderGrid();
+</script>
+</body>
+</html>
