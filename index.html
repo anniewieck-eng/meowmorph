@@ -182,20 +182,7 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
 <section class="panel" id="panel-2">
   <div class="card">
     <h2>AI Photo Analysis</h2>
-    <div class="hint">This calls the Claude API directly from your browser using your own API key (never sent anywhere else, kept in memory for this session only — check "remember" to also save it in this browser's local storage). The AI's <em>only</em> job is to look at the photos and describe coat colors and markings using your yarn palette — it never touches stitch counts or construction.</div>
-    <div class="row" style="margin-top:14px;">
-      <div style="flex:1;min-width:220px;">
-        <label>Anthropic API Key</label>
-        <input type="password" id="apiKey" placeholder="sk-ant-...">
-      </div>
-      <div style="width:220px;">
-        <label>Model</label>
-        <input type="text" id="apiModel" value="claude-sonnet-5">
-      </div>
-      <div style="align-self:flex-end;">
-        <label style="display:inline-flex;align-items:center;gap:6px;text-transform:none;font-weight:400;"><input type="checkbox" id="rememberKey" style="width:auto;">remember key in this browser</label>
-      </div>
-    </div>
+    <div class="hint">The AI's <em>only</em> job is to look at the photos and describe coat colors and markings using your yarn palette — it never touches stitch counts or construction. Photos are sent securely to our AI service for analysis and are not stored.</div>
     <div class="customer-field" style="margin-top:14px;">
       <label>Optional: anything to tell the AI before its first look?</label>
       <input type="text" id="initialInstructions" placeholder='e.g. "ignore the plaid blanket in the background" or "this cat has heterochromia, eye color doesn&#39;t matter"'>
@@ -306,13 +293,9 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
 
   <div class="card">
     <h2>Generate Finished Crochet Cat Photo</h2>
-    <div class="hint">Sends only three kinds of images to OpenAI's image API: the approved colored stitch maps, four fixed 3D-render views (front/left/right/back), and the gray finished crochet-cat reference photo you upload below. <strong>Your customer's real cat photos are never sent here</strong> — only what you've already approved through Steps 2–3. Coat colors and markings come only from the stitch maps and 3D render; the gray photo is used only to match crochet texture, yarn look, stuffed shape, and construction (ears, tail, safety eyes, embroidered nose/mouth, whiskers) — its gray color itself is not copied unless your stitch maps are actually gray.</div>
+    <div class="hint">Sends only three kinds of images to our AI service: the approved colored stitch maps, four fixed 3D-render views (front/left/right/back), and the gray finished crochet-cat reference photo you upload below. <strong>Your customer's real cat photos are never sent here</strong> — only what you've already approved through Steps 2–3. Coat colors and markings come only from the stitch maps and 3D render; the gray photo is used only to match crochet texture, yarn look, stuffed shape, and construction (ears, tail, safety eyes, embroidered nose/mouth, whiskers) — its gray color itself is not copied unless your stitch maps are actually gray.</div>
 
     <div class="row" style="margin-top:14px;">
-      <div style="flex:1;min-width:220px;">
-        <label>OpenAI API Key</label>
-        <input type="password" id="openaiApiKey" placeholder="sk-...">
-      </div>
       <div style="width:240px;">
         <label>Model</label>
         <input type="text" id="openaiImageModel" list="openaiModelList" value="gpt-image-2">
@@ -332,9 +315,6 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
           <option value="high" selected>High</option>
           <option value="auto">Auto</option>
         </select>
-      </div>
-      <div style="align-self:flex-end;">
-        <label style="display:inline-flex;align-items:center;gap:6px;text-transform:none;font-weight:400;"><input type="checkbox" id="rememberOpenaiKey" style="width:auto;">remember key in this browser</label>
       </div>
     </div>
 
@@ -523,14 +503,6 @@ function resizeAndEncode(file, maxDim){
 /* ============================================================
    STEP 2: AI ANALYSIS
    ============================================================ */
-if(localStorage.getItem("syp_apikey")){
-  document.getElementById("apiKey").value = localStorage.getItem("syp_apikey");
-  document.getElementById("rememberKey").checked = true;
-}
-document.getElementById("rememberKey").addEventListener("change", (e)=>{
-  if(!e.target.checked) localStorage.removeItem("syp_apikey");
-});
-
 function renderPaletteTable(){
   const body = document.getElementById("paletteBody");
   body.innerHTML="";
@@ -629,20 +601,16 @@ function logChat(role, text){
   log.scrollTop = log.scrollHeight;
 }
 
+// Backend Worker that holds the Anthropic and OpenAI API keys server-side
+// (see worker.js / GUIDE_cloudflare_backend.md) so visitors never need
+// their own keys. Routes: WORKER_BASE + "/claude" and "/openai-image".
+const WORKER_BASE = "https://meowmorph-ai.anniewieck.workers.dev";
+
 async function callClaude(){
-  const key = document.getElementById("apiKey").value.trim();
-  const model = document.getElementById("apiModel").value.trim() || "claude-sonnet-5";
-  if(!key) throw new Error("Enter your API key first.");
-  if(document.getElementById("rememberKey").checked) localStorage.setItem("syp_apikey", key);
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const resp = await fetch(WORKER_BASE + "/claude", {
     method:"POST",
-    headers:{
-      "content-type":"application/json",
-      "x-api-key": key,
-      "anthropic-version":"2023-06-01",
-      "anthropic-dangerous-direct-browser-access":"true"
-    },
-    body: JSON.stringify({ model, max_tokens: 2500, messages: conversation })
+    headers:{ "content-type":"application/json" },
+    body: JSON.stringify({ messages: conversation })
   });
   const data = await resp.json();
   if(!resp.ok) throw new Error(data.error?.message || resp.statusText);
@@ -726,7 +694,7 @@ After you answer, I may send you follow-up instructions in plain language asking
     status.textContent = "Done. Review the marking report below, apply it, or refine it in the chat.";
     status.className = "badge-ok hint";
   }catch(err){
-    status.textContent = "Request failed: " + err.message + " (check API key and that this key allows browser access).";
+    status.textContent = "Request failed: " + err.message + " (please try again in a moment).";
     status.className = "badge-warn hint";
     logChat("assistant", "⚠ " + err.message);
   }
@@ -2108,28 +2076,13 @@ function captureCrochetPreviewViews(){
 /* ============================================================
    STEP 4: GENERATE FINISHED CROCHET CAT PHOTO (OpenAI Images API)
    ------------------------------------------------------------
-   SECURITY NOTE: like the Anthropic call earlier in this file, this calls
-   OpenAI's API directly from the browser using a key typed into this page.
-   That's an acceptable shortcut for an internal prototype only Annie uses,
-   but a customer-facing site should NEVER ship this way: anyone with
-   devtools open on a public page can read the key out of memory (or out of
-   localStorage, if "remember" is checked) and spend against it. The fix is
-   to move the fetch() inside callOpenAIImageAPI() below onto a small
-   server or serverless function that holds the real key server-side and
-   only forwards the prompt + reference images — callOpenAIImageAPI() is
-   kept as its own function specifically so that swap is a one-function
-   change later, not a rewrite.
-
-   BROWSER LIMITATION: unlike Anthropic's API (which ships an explicit
-   "anthropic-dangerous-direct-browser-access" header to allow this),
-   OpenAI's REST API does not return CORS headers for browser-origin
-   requests. A direct fetch() from this page to api.openai.com will very
-   likely fail with an opaque browser network error even with a perfectly
-   valid key and request body. callOpenAIImageAPI() below catches that
-   specific failure and explains it rather than showing a bare "Failed to
-   fetch" — see its catch block. The real fix is the same server-side
-   proxy mentioned above; this file structures the code so adding one later
-   only touches callOpenAIImageAPI().
+   Goes through the same backend Worker as the Claude call (WORKER_BASE +
+   "/openai-image", see worker.js / GUIDE_cloudflare_backend.md). The
+   Worker holds the real OpenAI key server-side and forwards the prompt +
+   reference images — this page never sees or sends the key. This also
+   sidesteps a hard browser limitation: OpenAI's REST API does not return
+   CORS headers for browser-origin requests, so a direct fetch() from this
+   page to api.openai.com would fail regardless of the key.
 
    SOURCE RESTRICTIONS (see buildOpenAIImagePrompt below for the prompt
    itself): the ONLY images ever sent to OpenAI here are (1) a freshly
@@ -2139,20 +2092,6 @@ function captureCrochetPreviewViews(){
    photos (Step 1 uploads, `photos`) are never referenced anywhere in this
    section — there is no code path here that reads from `photos`.
    ============================================================ */
-
-// A raw pixel-level check that the OpenAI key never leaks into places it
-// shouldn't: nothing in this file writes document.getElementById("openaiApiKey")
-// into a PDF, a filename, a console.log, or the generatedCatPhoto object
-// that flows into the PDF. It only ever goes into the Authorization header
-// of the fetch() in callOpenAIImageAPI(), and (if the user opts in) into
-// localStorage under "syp_openai_apikey".
-if(localStorage.getItem("syp_openai_apikey")){
-  document.getElementById("openaiApiKey").value = localStorage.getItem("syp_openai_apikey");
-  document.getElementById("rememberOpenaiKey").checked = true;
-}
-document.getElementById("rememberOpenaiKey").addEventListener("change", (e)=>{
-  if(!e.target.checked) localStorage.removeItem("syp_openai_apikey");
-});
 
 document.getElementById("grayCatRefInput").addEventListener("change", async (e)=>{
   const file = e.target.files[0];
@@ -2315,19 +2254,10 @@ function validateImageGenerationInputs(){
   const overview = captureStitchMapOverview();
   if(!overview) blockers.push("The stitch-map overview image failed to render.");
 
-  const key = document.getElementById("openaiApiKey").value.trim();
-  if(!key) blockers.push("Enter your OpenAI API key first.");
-
   return { blockers, warnings, views, overview };
 }
 
-// Isolated on purpose (see the SECURITY NOTE / BROWSER LIMITATION comment
-// at the top of this section) so this is the one function a future server-
-// side proxy needs to replace.
 async function callOpenAIImageAPI(promptText, referenceDataUrls){
-  const key = document.getElementById("openaiApiKey").value.trim();
-  if(!key) throw new Error("Enter your OpenAI API key first.");
-  if(document.getElementById("rememberOpenaiKey").checked) localStorage.setItem("syp_openai_apikey", key);
   const model = (document.getElementById("openaiImageModel").value||"").trim() || "gpt-image-2";
   const quality = document.getElementById("openaiImageQuality").value || "high";
 
@@ -2344,18 +2274,12 @@ async function callOpenAIImageAPI(promptText, referenceDataUrls){
 
   let resp;
   try{
-    resp = await fetch("https://api.openai.com/v1/images/edits", {
+    resp = await fetch(WORKER_BASE + "/openai-image", {
       method: "POST",
-      headers: { "Authorization": "Bearer " + key }, // no other headers — fetch sets multipart boundary itself
       body: form
     });
   }catch(networkErr){
-    // Browsers report a CORS rejection as an opaque network failure with no
-    // further detail attached — this is the expected failure mode for
-    // calling OpenAI's API directly from a browser (see the BROWSER
-    // LIMITATION comment above). Explain it rather than surfacing a bare
-    // "Failed to fetch".
-    throw new Error("The request never reached OpenAI (browser network/CORS error). Unlike Anthropic's API, OpenAI's API does not allow direct browser calls to api.openai.com from a webpage. This feature needs a small server-side proxy (one serverless function that forwards this exact request and holds the key) before it will work from a deployed site — see the comment above callOpenAIImageAPI() in the source.");
+    throw new Error("The request never reached the server (network error). " + networkErr.message);
   }
   const data = await resp.json().catch(()=>null);
   if(!resp.ok){
