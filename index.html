@@ -305,13 +305,85 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
   </div>
 
   <div class="card">
-    <h2>Add to Original Pattern PDF</h2>
-    <div class="hint">Select the original "Base Cat Crochet Pattern" PDF below. This keeps every one of its existing pages exactly as-is and appends new pages at the end: the 3D rendering (front and back), then this cat's colored stitch chart + row-by-row colors for each part.</div>
-    <div class="row" style="margin-top:10px;">
-      <input type="file" id="basePatternPdfInput" accept="application/pdf">
-      <button id="btnMergePdf" class="secondary">Add Stitch Maps + 3D Render to That PDF →</button>
+    <h2>Generate Finished Crochet Cat Photo</h2>
+    <div class="hint">Sends only three kinds of images to OpenAI's image API: the approved colored stitch maps, four fixed 3D-render views (front/left/right/back), and the gray finished crochet-cat reference photo you upload below. <strong>Your customer's real cat photos are never sent here</strong> — only what you've already approved through Steps 2–3. Coat colors and markings come only from the stitch maps and 3D render; the gray photo is used only to match crochet texture, yarn look, stuffed shape, and construction (ears, tail, safety eyes, embroidered nose/mouth, whiskers) — its gray color itself is not copied unless your stitch maps are actually gray.</div>
+
+    <div class="row" style="margin-top:14px;">
+      <div style="flex:1;min-width:220px;">
+        <label>OpenAI API Key</label>
+        <input type="password" id="openaiApiKey" placeholder="sk-...">
+      </div>
+      <div style="width:240px;">
+        <label>Model</label>
+        <input type="text" id="openaiImageModel" list="openaiModelList" value="gpt-image-2">
+        <datalist id="openaiModelList">
+          <option value="gpt-image-2">gpt-image-2 (recommended, current flagship)</option>
+          <option value="gpt-image-1.5">gpt-image-1.5</option>
+          <option value="gpt-image-1">gpt-image-1</option>
+          <option value="gpt-image-1-mini">gpt-image-1-mini (cheaper/faster)</option>
+          <option value="chatgpt-image-latest">chatgpt-image-latest</option>
+        </datalist>
+      </div>
+      <div style="width:150px;">
+        <label>Quality</label>
+        <select id="openaiImageQuality">
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high" selected>High</option>
+          <option value="auto">Auto</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end;">
+        <label style="display:inline-flex;align-items:center;gap:6px;text-transform:none;font-weight:400;"><input type="checkbox" id="rememberOpenaiKey" style="width:auto;">remember key in this browser</label>
+      </div>
     </div>
-    <div class="hint" id="mergeStatus" style="margin-top:8px;"></div>
+
+    <div class="row" style="margin-top:14px;align-items:flex-start;">
+      <div class="upload-slot" style="max-width:220px;">
+        <div class="lbl">Gray Finished Crochet-Cat Reference</div>
+        <img style="display:none;" id="grayCatRefPreview">
+        <input type="file" accept="image/*" id="grayCatRefInput">
+      </div>
+      <div class="hint" style="flex:1;min-width:240px;">This should be a real photo of a finished (undyed/gray) crocheted cat made from the same base pattern — it teaches the image model what "actually crocheted" looks like: stitch texture, yarn thickness, stuffed shaping, proportions, ears, tail, safety eyes, embroidered nose/mouth, whiskers. It is a construction reference only, never a color source.</div>
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <button id="btnGenerateCatPhoto">Generate Finished Crochet Cat Photo</button>
+      <button id="btnRegenerateCatPhoto" class="secondary" disabled>Regenerate</button>
+      <button id="btnApproveCatPhoto" class="secondary" disabled>Approve Photo</button>
+      <span class="hint" id="catPhotoApprovedBadge" style="display:none;color:var(--ok, #4a7c4a);font-weight:600;">✓ Approved</span>
+    </div>
+    <div class="customer-field" style="margin-top:10px;">
+      <label>Feedback for Regenerate (optional) — e.g. "make the chest patch narrower," "the left front paw should be cream," "keep the same markings but make the crochet stitches more visible"</label>
+      <input type="text" id="catPhotoFeedback" placeholder="What should change? Leave blank to just try again with the same instructions.">
+    </div>
+    <div class="hint" id="catPhotoValidation" style="margin-top:10px;"></div>
+    <div class="hint" id="catPhotoStatus" style="margin-top:4px;"></div>
+
+    <div id="catPhotoPreviewWrap" style="display:none;margin-top:14px;max-width:420px;">
+      <img id="catPhotoPreviewImg" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Create Customer Pattern PDF</h2>
+    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also adds a crochet-style finished-cat preview and yarn list near the end. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code>, sitting in the same folder) — nothing to upload.</div>
+    <div class="row" style="margin-top:10px;">
+      <label style="display:flex;align-items:center;gap:6px;font-family:system-ui,sans-serif;font-size:13px;">Preview quality
+        <select id="previewQuality">
+          <option value="draft">Draft (fast)</option>
+          <option value="standard" selected>Standard</option>
+          <option value="high">High</option>
+        </select>
+      </label>
+      <button id="btnMergePdf" class="secondary">Create Customer Pattern PDF →</button>
+      <label style="font-family:system-ui,sans-serif;font-size:12px;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="useCustomBasePdf" style="vertical-align:middle;"> use a different base PDF for this export
+      </label>
+    </div>
+    <input type="file" id="basePatternPdfInput" accept="application/pdf" class="no-print" style="display:none;margin-top:8px;">
+    <div class="hint" id="mergeValidation" style="margin-top:8px;"></div>
+    <div class="hint" id="mergeStatus" style="margin-top:4px;"></div>
   </div>
 </section>
 
@@ -378,6 +450,8 @@ let zoom = 1;
 let undoStack = [];
 let redoStack = [];
 let strokeChanges = null; // active stroke batch
+let grayCatRef = null;        // {dataUrl} - the uploaded gray finished crochet-cat construction reference
+let generatedCatPhoto = null; // {dataUrl, approved, promptUsed} - the OpenAI-generated finished-cat photo, if any
 
 function gridKey(part, inst){ return part + "#" + inst; }
 
@@ -1161,9 +1235,59 @@ document.getElementById("zoomReset").addEventListener("click",()=>{ zoom=1; rend
    and every quad is colored from the exact painted stitch at that
    angle — same data as the flat chart and the printed pattern.
    ============================================================ */
-const P3D_M = 48;      // segments around each ring (render resolution)
+let P3D_M = 48;        // segments around each ring (render resolution) — quality-dependent, see setPreviewQuality()
 const P3D_W = 1.0;     // stitch width, arbitrary scene unit
 const P3D_H = 0.85;    // round height in stitch widths
+
+// Draft trades texture/segment detail for speed (good while orbiting);
+// Standard/High add stitch texture and match the brief's "must look
+// crocheted" ask more closely. Changing this rebuilds the scene, since
+// segment count (P3D_M) changes the geometry itself.
+let PREVIEW_QUALITY = "standard";
+const PREVIEW_QUALITY_SEGMENTS = { draft:28, standard:48, high:72 };
+function setPreviewQuality(q){
+  if(!PREVIEW_QUALITY_SEGMENTS[q]) return;
+  PREVIEW_QUALITY = q;
+  P3D_M = PREVIEW_QUALITY_SEGMENTS[q];
+  scene3d = null; // force a rebuild at the new segment count
+  if(typeof renderPreview3D === "function") renderPreview3D();
+}
+
+// Deterministic pseudo-random in [0,1) from an integer seed. Used for the
+// "slight random fiber variation" the brief asks for on the yarn texture —
+// seeded (not Math.random()) so the same stitch map always renders
+// identically, per the brief's "must remain deterministic" requirement.
+function hash01(n){
+  let x = Math.imul(n ^ 0x9E3779B9, 0x85EBCA6B);
+  x ^= x >>> 13; x = Math.imul(x, 0xC2B2AE35); x ^= x >>> 16;
+  return (x >>> 0) / 4294967296;
+}
+function strHash(s){
+  let h = 0;
+  for(let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+function shadeHex(hex, factor){ // factor<1 darkens, factor>1 lightens (clamped)
+  const r = Math.min(255,Math.max(0,Math.round(parseInt(hex.slice(1,3),16)*factor)));
+  const g = Math.min(255,Math.max(0,Math.round(parseInt(hex.slice(3,5),16)*factor)));
+  const b = Math.min(255,Math.max(0,Math.round(parseInt(hex.slice(5,7),16)*factor)));
+  return "#"+[r,g,b].map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+function blendHex(hexA, hexB, t){ // t=0 -> hexA, t=1 -> hexB
+  const a = [1,3,5].map(i=>parseInt(hexA.slice(i,i+2),16));
+  const b = [1,3,5].map(i=>parseInt(hexB.slice(i,i+2),16));
+  const c = a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+  return "#"+c.map(v=>v.toString(16).padStart(2,"0")).join("");
+}
+// Rounds that sew onto another part (last round of legs/ears/tail, and the
+// neck seam) sit slightly recessed in a real crocheted seam — darken them a
+// touch for a cheap ambient-occlusion approximation (Layer 3).
+// head + body are included so the neck seam (body's last round / head's last
+// round, where the two pieces are actually sewn together) reads as a subtle
+// darker "collar" ring, matching the visible seam groove in reference photos
+// of the finished doll — instead of the smooth, seamless neck the renderer
+// used to produce.
+const AO_LAST_ROUND_PARTS = new Set(["frontLegs","backLegs","ear","tail","head","body"]);
 
 // pose: where each part sits, ported verbatim from preview3d.py's
 // hand-tuned POSE/EAR_POSE constants. Cat faces +z, y is up. rotX
@@ -1176,11 +1300,19 @@ const POSE3D = {
   frontRight: { part:"frontLegs", inst:1, pos:[3.4,0,7.6],      rotX:-13, flip:false },
   backLeft:   { part:"backLegs",  inst:0, pos:[-6.6,2.4,3.0],   rotX:90,  flip:false },
   backRight:  { part:"backLegs",  inst:1, pos:[6.6,2.4,3.0],    rotX:90,  flip:false },
-  tail:       { part:"tail",      inst:0, pos:[0,2.0,-6.0],     rotX:-80, flip:true },
+  // curve.deg bends the tail progressively from base (0°) to tip (full deg),
+  // biased toward the tip via ease>1 — verified numerically (see chat) to
+  // land the tip just above y=0 (the ground plane) rather than clipping
+  // through the floor or swinging back up toward the body.
+  tail:       { part:"tail",      inst:0, pos:[0,2.0,-6.0],     rotX:-80, flip:true,
+                curve:{ deg:-40, ease:1.3 } },
 };
 const EAR_POSE3D = {
-  earLeft:  { inst:0, pos:[-4.6,29.5,2.0], tiltDeg:-18 },
-  earRight: { inst:1, pos:[4.6,29.5,2.0],  tiltDeg:18 },
+  // tiltDeg widened from ±18 to ±24 to match the outward ear splay visible
+  // in reference photos of the finished doll (most apparent looking straight
+  // down at the head from above).
+  earLeft:  { inst:0, pos:[-4.6,29.5,2.0], tiltDeg:-24 },
+  earRight: { inst:1, pos:[4.6,29.5,2.0],  tiltDeg:24 },
 };
 
 // The head's pos[1]=18.5 above was hand-tuned against preview3d.py's own
@@ -1262,6 +1394,36 @@ function tubeQuads(pose){
     for(let i=0;i<ys.length;i++) ys[i] = top - ys[i];
   }
 
+  // Optional curved backbone (Layer: bent tube), used by the tail so it
+  // droops/curls along its length instead of rendering as one rigid rod.
+  // ys[] is 0 at whichever ring the whole part pivots from (the true magic
+  // ring is always built starting at 0, and flip — if set — mirrors that
+  // afterward), and grows toward the far end, so treating ys/topVal as a
+  // 0..1 "distance from the anchor" fraction works regardless of flip.
+  // The bend only happens in the local y-z plane (rotation about the local
+  // x-axis), which is enough to make a tail curl/droop without adding any
+  // sideways wobble.
+  let curveCenters = null, curveBetaDeg = null;
+  if(pose.curve && pose.curve.deg){
+    const topVal = Math.max(...ys) || 1;
+    const order = pose.flip ? Array.from({length:n},(_,i)=>n-1-i) : Array.from({length:n},(_,i)=>i);
+    curveCenters = new Array(n);
+    curveBetaDeg = new Array(n);
+    const first = order[0];
+    curveCenters[first] = [0,0,0];
+    curveBetaDeg[first] = 0;
+    for(let k=1;k<order.length;k++){
+      const idx = order[k], prev = order[k-1];
+      const segLen = Math.abs(ys[idx]-ys[prev]);
+      const t = Math.pow(ys[idx]/topVal, pose.curve.ease||1);
+      const beta = pose.curve.deg * t;
+      const midBeta = (curveBetaDeg[prev]+beta)/2 * Math.PI/180;
+      const dirY = Math.cos(midBeta), dirZ = Math.sin(midBeta);
+      curveCenters[idx] = [0, curveCenters[prev][1]+dirY*segLen, curveCenters[prev][2]+dirZ*segLen];
+      curveBetaDeg[idx] = beta;
+    }
+  }
+
   const off = Math.PI/2 - frontFrac*2*Math.PI;
   const nose = pose.nose;
   const rings = [];
@@ -1282,9 +1444,28 @@ function tubeQuads(pose){
           rad += nose.amount * Math.cos(Math.PI*d/half/2) * rowW;
         }
       }
-      pts.push([rad*Math.cos(th), ys[r], rad*Math.sin(th)]);
+      if(curveCenters){
+        const beta = curveBetaDeg[r]*Math.PI/180;
+        const localX = rad*Math.cos(th), localZ0 = rad*Math.sin(th);
+        const c = curveCenters[r];
+        pts.push([localX + c[0], c[1] - localZ0*Math.sin(beta), c[2] + localZ0*Math.cos(beta)]);
+      } else {
+        pts.push([rad*Math.cos(th), ys[r], rad*Math.sin(th)]);
+      }
       const idx = Math.floor(frac*cnt) % cnt;
-      cols.push(colorHex(g[r][idx]));
+      let hex = colorHex(g[r][idx]);
+      // Layer 3 — slight per-stitch yarn color variation (deterministic,
+      // keyed to the actual stitch identity so it's stable across renders
+      // and independent of segment count) and a touch of AO darkening on
+      // the seam round that sews onto the next part.
+      if(PREVIEW_QUALITY!=="draft"){
+        const jitter = 0.90 + 0.20*hash01(strHash(part+"|"+inst+"|"+r+"|"+idx));
+        hex = shadeHex(hex, jitter);
+      }
+      if(AO_LAST_ROUND_PARTS.has(part) && r===n-1){
+        hex = shadeHex(hex, 0.82);
+      }
+      cols.push(hex);
     }
     rings.push([pts,cols]);
   }
@@ -1297,13 +1478,21 @@ function tubeQuads(pose){
   // too would push it past the seam and into the neighboring part, which is
   // exactly what made body-top stitches render on top of the head. So the
   // last round gets a flush cap (no bulge) instead.
+  function ringAvg(ring){
+    let sy=0, sz=0; const pts=ring[0];
+    for(const p of pts){ sy+=p[1]; sz+=p[2]; }
+    return [sy/pts.length, sz/pts.length];
+  }
+  // cy/cz use the ring's actual average position (not just point0, and not an
+  // assumed x=0/z=0 center) so this still collapses to a sane pinch point on
+  // a curved (bent) ring, not just a straight one.
   function cap(ring, neighborY, flush){
     const pts=ring[0], cols=ring[1];
-    const cy = pts[0][1];
+    const [cy, cz] = ringAvg(ring);
     const bulge = flush ? 0 : (neighborY > cy ? -0.6*P3D_H : 0.6*P3D_H);
-    return [pts.map(p=>[p[0]*1e-3, cy+bulge, p[2]*1e-3]), cols];
+    return [pts.map(p=>[p[0]*1e-3, cy+bulge, cz+(p[2]-cz)*1e-3]), cols];
   }
-  const allRings = [cap(rings[0], rings[1][0][0][1], false), ...rings, cap(rings[n-1], rings[n-2][0][0][1], true)];
+  const allRings = [cap(rings[0], ringAvg(rings[1])[0], false), ...rings, cap(rings[n-1], ringAvg(rings[n-2])[0], true)];
 
   const quads=[];
   for(let r=0;r<allRings.length-1;r++){
@@ -1321,29 +1510,69 @@ function tubeQuads(pose){
   return quads;
 }
 
-/* Ears are flat dc rows (3-5-7 wide), built as a two-sided rectangle
-   of cells, tilted outward. */
+/* Ears are flat dc rows (3-5-7 wide), built as a two-sided rectangle of
+   cells, tilted outward, with a thin front/back offset plus perimeter
+   "side wall" strips so they read as slightly thick fabric (Layer 1)
+   rather than a perfectly flat plane. */
 function earQuads(pose){
   const quads=[];
   const cw=1.55, ch=2.0; // dc stitches are wider/taller; ears read big
+  const thick = 0.5;     // small thickness so ears aren't paper-flat
   const tilt = pose.tiltDeg*Math.PI/180;
   const rows = STITCH_MAPS.ear.rows;
   const n = rows.length;
   const g = grids[gridKey("ear", pose.inst)];
+  // Reference photos of the finished doll show the ear tip folded/creased
+  // forward rather than standing up as a flat point. Model that as a hinge
+  // bend applied only to the tip row (r===0), rotating it forward about the
+  // row0/row1 boundary before the rest of the ear's tilt/position transform.
+  const FOLD_DEG = 26;
+  const hingeY = (n-2)*ch; // top of row index 1 = bottom edge of the tip row
+  function foldTip([x,y,z]){
+    const rad = FOLD_DEG*Math.PI/180;
+    const dy = y - hingeY, dz = z;
+    const ny = hingeY + dy*Math.cos(rad) - dz*Math.sin(rad);
+    const nz = dz*Math.cos(rad) + dy*Math.sin(rad);
+    return [x, ny, nz];
+  }
+  function xform([x,y,z]){
+    const xr = x*Math.cos(tilt) - z*Math.sin(tilt);
+    const zr = x*Math.sin(tilt) + z*Math.cos(tilt);
+    return [xr+pose.pos[0], y+pose.pos[1], zr+pose.pos[2]];
+  }
   for(let r=0;r<n;r++){
     const cnt = rows[r];
     const y0 = (n-1-r)*ch; // row1 = tip, at the top
     for(let i=0;i<cnt;i++){
       const x0 = (i - cnt/2)*cw;
-      const quad = [[x0,y0,0],[x0+cw,y0,0],[x0+cw,y0+ch,0],[x0,y0+ch,0]];
-      const out = quad.map(([x,y,z])=>{
-        const xr = x*Math.cos(tilt) - z*Math.sin(tilt);
-        const zr = x*Math.sin(tilt) + z*Math.cos(tilt);
-        return [xr+pose.pos[0], y+pose.pos[1], zr+pose.pos[2]];
-      });
-      const color = colorHex(g[r][i]);
-      quads.push([out, color]);
-      quads.push([out.slice().reverse(), color]); // back face
+      let hex = colorHex(g[r][i]);
+      if(PREVIEW_QUALITY!=="draft"){
+        hex = shadeHex(hex, 0.90 + 0.20*hash01(strHash("ear|"+pose.inst+"|"+r+"|"+i)));
+      }
+      if(r===n-1) hex = shadeHex(hex, 0.85); // base row sews onto the head
+      // optional fixed inner-ear tint (Layer 4) — a soft pink toward the
+      // center of the ear, independent of the painted yarn color
+      let innerTintHex = hex;
+      const centerDist = Math.abs(i - (cnt-1)/2)/(cnt/2||1);
+      if(r>0 && r<n-1 && centerDist<0.55){
+        innerTintHex = blendHex(hex, "#E8B9AE", 0.3*(1-centerDist));
+      }
+      let front = [[x0,y0,0],[x0+cw,y0,0],[x0+cw,y0+ch,0],[x0,y0+ch,0]];
+      let back  = [[x0,y0,-thick],[x0+cw,y0,-thick],[x0+cw,y0+ch,-thick],[x0,y0+ch,-thick]];
+      if(r===0){ front = front.map(foldTip); back = back.map(foldTip); }
+      quads.push([front.map(xform), innerTintHex]);
+      quads.push([back.slice().reverse().map(xform), hex]);
+      // thin perimeter walls so the silhouette edge shows real thickness
+      const innerHex = shadeHex(hex, 0.9);
+      if(i===0){
+        quads.push([[front[0],front[3],back[3],back[0]].map(xform), innerHex]);
+      }
+      if(i===cnt-1){
+        quads.push([[front[1],back[1],back[2],front[2]].map(xform), innerHex]);
+      }
+      if(r===0){
+        quads.push([[front[3],front[2],back[2],back[3]].map(xform), innerHex]);
+      }
     }
   }
   return quads;
@@ -1376,6 +1605,141 @@ function shaded3d(hex, k){
   return (shadeCache3d[key] = `rgb(${r},${g},${b})`);
 }
 
+// Shared camera projection so facial-feature points (below) land in exactly
+// the same screen space as the quads, without duplicating the transform.
+function projectPoint(x,y,z,w,h){
+  const cy0=Math.cos(cam3d.yaw), sy0=Math.sin(cam3d.yaw);
+  const cp=Math.cos(cam3d.pitch), sp=Math.sin(cam3d.pitch);
+  const f=620;
+  const yy = y-CAM3D_CY;
+  const xr = x*cy0+z*sy0, zr = -x*sy0+z*cy0;
+  const yr = yy*cp - zr*sp, zr2 = yy*sp + zr*cp;
+  const zc = zr2 + cam3d.dist;
+  const s = f/zc;
+  return { x:w/2+xr*s, y:h/2-yr*s, z:zc, s };
+}
+// True when a (non-translated) direction vector points generally toward the
+// camera at the current orbit angle — used so facial features drawn as a 2D
+// overlay don't show through the back of the head.
+function facingCamera(dir, margin){
+  const cy0=Math.cos(cam3d.yaw), sy0=Math.sin(cam3d.yaw);
+  const cp=Math.cos(cam3d.pitch), sp=Math.sin(cam3d.pitch);
+  const [x,y,z]=dir;
+  const xr=x*cy0+z*sy0, zr=-x*sy0+z*cy0;
+  const zr2=y*sp+zr*cp;
+  return zr2 < -(margin!==undefined?margin:0.15);
+}
+
+// Standalone copy of the head's radius/height geometry (same formula as
+// tubeQuads) so facial features can be placed on the exact surface the head
+// mesh uses, without needing to re-derive it from rendered quads.
+function computeHeadGeometry(){
+  const rows = STITCH_MAPS.head.rows;
+  const n = rows.length;
+  const rScale = POSE3D.head.rScale!==undefined?POSE3D.head.rScale:1.0;
+  const raw = rows.map(c=>c*P3D_W/(2*Math.PI));
+  const radii = [];
+  for(let i=0;i<n;i++){
+    const lo=Math.max(0,i-2), hi=Math.min(n-1,i+2);
+    let sum=0,cnt=0;
+    for(let k=lo;k<=hi;k++){ sum+=raw[k]; cnt++; }
+    radii.push((sum/cnt)*rScale);
+  }
+  const ys=[0.0];
+  for(let r=1;r<n;r++){
+    const dr = Math.min(Math.abs(radii[r]-radii[r-1]), 0.78*P3D_H);
+    ys.push(ys[ys.length-1] + Math.sqrt(P3D_H*P3D_H - dr*dr));
+  }
+  const top = ys[ys.length-1];
+  return { radii, ys: ys.map(y=>top-y), n }; // flipped, matching flip:true
+}
+// World-space point + outward direction on the head's surface at a 1-indexed
+// round and an angular offset from the front (0 = straight ahead).
+function headSurfacePoint(geo, row1, angFracFromFront, bulge){
+  const r = row1-1;
+  const frontFrac = STITCH_MAPS.head.frontCenterFrac;
+  const off = Math.PI/2 - frontFrac*2*Math.PI;
+  const frac = ((frontFrac + angFracFromFront) % 1 + 1) % 1;
+  const th = frac*2*Math.PI + off;
+  let rad = geo.radii[Math.max(0,Math.min(geo.n-1,r))];
+  const nose = POSE3D.head.nose;
+  if(bulge && nose && nose.rows[0]<=row1 && row1<=nose.rows[1]){
+    let d = Math.abs(frac-frontFrac); d = Math.min(d,1-d);
+    const half = nose.widthFrac/2;
+    if(d<half){
+      const rowW = Math.sin(Math.PI*(row1-nose.rows[0])/(nose.rows[1]-nose.rows[0]+1));
+      rad += nose.amount*Math.cos(Math.PI*d/half/2)*rowW;
+    }
+  }
+  const local = [rad*Math.cos(th), geo.ys[Math.max(0,Math.min(geo.n-1,r))], rad*Math.sin(th)];
+  const dir = [Math.cos(th), 0, Math.sin(th)];
+  const pose = POSE3D.head;
+  const world = rotZPt(rotXPt(local,pose.rotX), pose.rotZ||0);
+  world[0]+=pose.pos[0]; world[1]+=pose.pos[1]; world[2]+=pose.pos[2];
+  const dirWorld = rotZPt(rotXPt(dir,pose.rotX), pose.rotZ||0);
+  return { pos:world, dir:dirWorld };
+}
+// Layer 4 — fixed non-yarn-color features (eyes, nose, mouth, whiskers).
+// These are drawn as a 2D overlay on top of the finished render, positioned
+// from the head's real geometry (eyeRowCenter, the nose bulge rows) rather
+// than hardcoded pixels, and skipped individually when that point is facing
+// away from the camera so they don't "show through" from the back.
+function drawFacialFeatures(ctx, w, h){
+  const geo = computeHeadGeometry();
+  const eyeRow = STITCH_MAPS.head.eyeRowCenter || 11;
+  const eyeRowStitches = STITCH_MAPS.head.rows[eyeRow-1] || 48;
+  const eyeHalfFrac = 4/eyeRowStitches; // "8 stitches apart" => 4 each side of center
+  const noseRow = 14;
+  const eyes = [ headSurfacePoint(geo, eyeRow, -eyeHalfFrac, false), headSurfacePoint(geo, eyeRow, eyeHalfFrac, false) ];
+  const nose = headSurfacePoint(geo, noseRow, 0, true);
+  const mouthAnchor = headSurfacePoint(geo, noseRow+1, 0, true);
+  // Feature sizes are defined in WORLD units (comparable to a stitch width,
+  // P3D_W=1.0) and converted to screen pixels via that point's own
+  // projected scale (p.s), so they shrink/grow correctly as the camera
+  // zooms rather than staying a fixed pixel size.
+  const EYE_WORLD_R = 0.55, NOSE_WORLD_S = 0.85;
+
+  eyes.forEach(pt=>{
+    if(!facingCamera(pt.dir)) return;
+    const p = projectPoint(pt.pos[0],pt.pos[1],pt.pos[2],w,h);
+    const rr = Math.max(1.5, Math.min(14, EYE_WORLD_R*p.s));
+    ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,Math.PI*2); ctx.fillStyle="#1c1a18"; ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x-rr*0.3,p.y-rr*0.3,rr*0.28,0,Math.PI*2); ctx.fillStyle="#fdfcf9"; ctx.fill();
+  });
+
+  if(facingCamera(nose.dir)){
+    const p = projectPoint(nose.pos[0],nose.pos[1],nose.pos[2],w,h);
+    const s = Math.max(2.5, Math.min(16, NOSE_WORLD_S*p.s));
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y-s*0.6);
+    ctx.lineTo(p.x-s*0.7, p.y+s*0.5);
+    ctx.lineTo(p.x+s*0.7, p.y+s*0.5);
+    ctx.closePath();
+    ctx.fillStyle="#2a231e"; ctx.fill();
+
+    // mouth: small W-shaped smile line below the nose
+    const mp = projectPoint(mouthAnchor.pos[0],mouthAnchor.pos[1],mouthAnchor.pos[2],w,h);
+    ctx.strokeStyle="#2a231e"; ctx.lineWidth=Math.max(1,s*0.18);
+    ctx.beginPath();
+    ctx.moveTo(mp.x, mp.y);
+    ctx.quadraticCurveTo(mp.x-s*0.9, mp.y+s*0.9, mp.x-s*1.6, mp.y+s*0.3);
+    ctx.moveTo(mp.x, mp.y);
+    ctx.quadraticCurveTo(mp.x+s*0.9, mp.y+s*0.9, mp.x+s*1.6, mp.y+s*0.3);
+    ctx.stroke();
+
+    // whiskers: simple screen-space fan from the muzzle, both sides
+    ctx.strokeStyle="rgba(250,248,244,0.75)"; ctx.lineWidth=Math.max(0.6,s*0.09);
+    [-1,1].forEach(side=>{
+      [-0.35,0,0.35].forEach(spread=>{
+        ctx.beginPath();
+        ctx.moveTo(p.x+side*s*0.6, p.y+spread*s*0.6);
+        ctx.lineTo(p.x+side*s*3.2, p.y+spread*s*1.6);
+        ctx.stroke();
+      });
+    });
+  }
+}
+
 function render3d(){
   const cv = document.getElementById("preview3dCanvas");
   if(!cv || !scene3d) return;
@@ -1385,7 +1749,11 @@ function render3d(){
     cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr);
   }
   ctx.setTransform(dpr,0,0,dpr,0,0);
-  ctx.clearRect(0,0,w,h);
+
+  // Layer 3 — neutral studio background instead of a transparent canvas,
+  // so exported snapshots look customer-ready on their own.
+  ctx.fillStyle = "#F3EEE6";
+  ctx.fillRect(0,0,w,h);
 
   const V = scene3d.verts, colorsArr = scene3d.colors;
   const N = colorsArr.length;
@@ -1424,18 +1792,104 @@ function render3d(){
   for(let q=0;q<N;q++) if(depth[q]>0) order.push(q);
   order.sort((a,b)=>depth[b]-depth[a]);
 
+  // Layer 3 — soft ground shadow, drawn before the model so it sits underneath
+  const groundP = projectPoint(0,0,0,w,h);
+  const shadowR = Math.max(20, Math.min(w,h)*0.28);
+  const grad = ctx.createRadialGradient(groundP.x,groundP.y,shadowR*0.1,groundP.x,groundP.y,shadowR);
+  grad.addColorStop(0,"rgba(30,25,20,0.28)");
+  grad.addColorStop(1,"rgba(30,25,20,0)");
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.ellipse(groundP.x, groundP.y, shadowR, shadowR*0.38, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  const texture = PREVIEW_QUALITY!=="draft";
+  const highDetail = PREVIEW_QUALITY==="high";
   for(let k=0;k<order.length;k++){
     const q=order[k];
-    ctx.fillStyle = shaded3d(colorsArr[q], shade[q]);
+    const baseHex = colorsArr[q];
+
+    // one screen edge of this quad is the "round r" boundary, the other is
+    // "round r+1" — figure out which reads as visually higher so the
+    // highlight/shadow/gradient always run top-to-bottom on screen
+    // regardless of camera orbit.
+    const y01=(py[q*4]+py[q*4+1])/2, y23=(py[q*4+2]+py[q*4+3])/2;
+    const topIsFirst = y01<y23;
+    const tx0=topIsFirst?px[q*4]:px[q*4+2], ty0=topIsFirst?py[q*4]:py[q*4+2];
+    const tx1=topIsFirst?px[q*4+1]:px[q*4+3], ty1=topIsFirst?py[q*4+1]:py[q*4+3];
+    const bx0=topIsFirst?px[q*4+2]:px[q*4], by0=topIsFirst?py[q*4+2]:py[q*4];
+    const bx1=topIsFirst?px[q*4+3]:px[q*4+1], by1=topIsFirst?py[q*4+3]:py[q*4+1];
+    const midTopX=(tx0+tx1)/2, midTopY=(ty0+ty1)/2;
+    const midBotX=(bx0+bx1)/2, midBotY=(by0+by1)/2;
+
     ctx.beginPath();
     ctx.moveTo(px[q*4],py[q*4]);
     ctx.lineTo(px[q*4+1],py[q*4+1]);
     ctx.lineTo(px[q*4+2],py[q*4+2]);
     ctx.lineTo(px[q*4+3],py[q*4+3]);
     ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth=0.6; ctx.stroke(); // hairline hides seams
+
+    if(texture){
+      // Layer 2 (rewrite) — each stitch band gets its own light-to-dark
+      // gradient (instead of one flat lit color), so the surface reads as
+      // ridged, bumpy fabric rather than a smooth shaded polygon mesh.
+      const band = Math.round(shade[q]*24);
+      const litFactor = 0.62 + 0.38*(band/24);
+      const lit = shadeHex(baseHex, litFactor);
+      const grad = ctx.createLinearGradient(midTopX,midTopY,midBotX,midBotY);
+      grad.addColorStop(0, shadeHex(lit, 1.28));
+      grad.addColorStop(0.45, lit);
+      grad.addColorStop(1, shadeHex(lit, 0.62));
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = lit; ctx.lineWidth=0.6; ctx.stroke(); // hairline hides seams
+
+      // Ridge highlight/shadow along the round boundaries themselves —
+      // this is what reads as the "ribbed" horizontal rounds of real
+      // single crochet, stronger and thicker than the old subtle version.
+      const spanLen = Math.hypot(tx1-tx0,ty1-ty0);
+      const w1 = Math.max(0.5, spanLen*0.13);
+      ctx.lineWidth = w1;
+      ctx.strokeStyle = shadeHex(baseHex, 1.5);
+      ctx.beginPath(); ctx.moveTo(tx0,ty0); ctx.lineTo(tx1,ty1); ctx.stroke();
+      ctx.strokeStyle = shadeHex(baseHex, 0.4);
+      ctx.beginPath(); ctx.moveTo(bx0,by0); ctx.lineTo(bx1,by1); ctx.stroke();
+
+      // Per-stitch V chevron, mimicking the braided look of a single
+      // crochet column — visible (lighter) at standard quality, fuller at
+      // high quality.
+      const jitter = (hash01(strHash("v"+q))-0.5)*spanLen*0.28;
+      const midX=(midTopX+midBotX)/2+jitter, midY=(midTopY+midBotY)/2;
+      ctx.strokeStyle = shadeHex(baseHex, 0.68);
+      ctx.lineWidth = Math.max(0.4, w1*(highDetail?0.85:0.55));
+      ctx.globalAlpha = highDetail ? 1 : 0.65;
+      ctx.beginPath(); ctx.moveTo(midTopX,midTopY); ctx.lineTo(midX,midY); ctx.lineTo(midBotX,midBotY); ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      // Small rounded highlight "nub" near the top of the stitch — the
+      // rounded yarn bump every single crochet stitch shows in real life,
+      // which flat polygon shading alone can't suggest. High quality only
+      // (cheap per-quad radial gradient adds up fast at draft/standard
+      // segment counts x full-body quad counts).
+      if(highDetail && spanLen>3){
+        const nubX = midTopX + (midX-midTopX)*0.4;
+        const nubY = midTopY + (midY-midTopY)*0.4;
+        const nr = Math.max(0.6, spanLen*0.16);
+        const ng = ctx.createRadialGradient(nubX,nubY,0,nubX,nubY,nr);
+        ng.addColorStop(0, shadeHex(baseHex,1.55));
+        ng.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = ng;
+        ctx.beginPath(); ctx.arc(nubX,nubY,nr,0,Math.PI*2); ctx.fill();
+      }
+    } else {
+      // draft quality: keep the old cheap flat-shaded fill, no per-stitch cost
+      ctx.fillStyle = shaded3d(baseHex, shade[q]);
+      ctx.fill();
+      ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth=0.6; ctx.stroke();
+    }
   }
+
+  drawFacialFeatures(ctx, w, h);
   dirty3d=false;
 }
 
@@ -1477,6 +1931,12 @@ function renderPreview3D(){
 }
 document.getElementById("btnResetView")?.addEventListener("click", ()=>{
   cam3d.yaw = 3.45; cam3d.pitch = 0.12; cam3d.dist = 90; dirty3d=true;
+});
+document.getElementById("previewQuality")?.addEventListener("change", (e)=>{
+  setPreviewQuality(e.target.value);
+});
+document.getElementById("useCustomBasePdf")?.addEventListener("change", (e)=>{
+  document.getElementById("basePatternPdfInput").style.display = e.target.checked ? "block" : "none";
 });
 
 function renderYarnList(){
@@ -1633,6 +2093,350 @@ function capture3DSnapshotDataURL(yawOffset){
   dirty3d = true; // repaint the live view back on the next frame
   return url;
 }
+// The four canonical views the brief asks for, captured fresh from the
+// CURRENT stitch maps right before export (not whatever angle the user
+// happened to leave the live orbit view at). Yaw offsets are relative to
+// the same "front-ish" base angle (3.45 rad) the reset view already uses.
+function captureCrochetPreviewViews(){
+  return {
+    front: capture3DSnapshotDataURL(0),
+    left:  capture3DSnapshotDataURL(-Math.PI/4),
+    right: capture3DSnapshotDataURL(Math.PI/4),
+    back:  capture3DSnapshotDataURL(Math.PI),
+  };
+}
+/* ============================================================
+   STEP 4: GENERATE FINISHED CROCHET CAT PHOTO (OpenAI Images API)
+   ------------------------------------------------------------
+   SECURITY NOTE: like the Anthropic call earlier in this file, this calls
+   OpenAI's API directly from the browser using a key typed into this page.
+   That's an acceptable shortcut for an internal prototype only Annie uses,
+   but a customer-facing site should NEVER ship this way: anyone with
+   devtools open on a public page can read the key out of memory (or out of
+   localStorage, if "remember" is checked) and spend against it. The fix is
+   to move the fetch() inside callOpenAIImageAPI() below onto a small
+   server or serverless function that holds the real key server-side and
+   only forwards the prompt + reference images — callOpenAIImageAPI() is
+   kept as its own function specifically so that swap is a one-function
+   change later, not a rewrite.
+
+   BROWSER LIMITATION: unlike Anthropic's API (which ships an explicit
+   "anthropic-dangerous-direct-browser-access" header to allow this),
+   OpenAI's REST API does not return CORS headers for browser-origin
+   requests. A direct fetch() from this page to api.openai.com will very
+   likely fail with an opaque browser network error even with a perfectly
+   valid key and request body. callOpenAIImageAPI() below catches that
+   specific failure and explains it rather than showing a bare "Failed to
+   fetch" — see its catch block. The real fix is the same server-side
+   proxy mentioned above; this file structures the code so adding one later
+   only touches callOpenAIImageAPI().
+
+   SOURCE RESTRICTIONS (see buildOpenAIImagePrompt below for the prompt
+   itself): the ONLY images ever sent to OpenAI here are (1) a freshly
+   rendered overview of the approved, colored stitch maps, (2) four fixed-
+   camera 3D render views (front/left/right/back), and (3) the uploaded
+   gray finished crochet-cat reference photo. The customer's original cat
+   photos (Step 1 uploads, `photos`) are never referenced anywhere in this
+   section — there is no code path here that reads from `photos`.
+   ============================================================ */
+
+// A raw pixel-level check that the OpenAI key never leaks into places it
+// shouldn't: nothing in this file writes document.getElementById("openaiApiKey")
+// into a PDF, a filename, a console.log, or the generatedCatPhoto object
+// that flows into the PDF. It only ever goes into the Authorization header
+// of the fetch() in callOpenAIImageAPI(), and (if the user opts in) into
+// localStorage under "syp_openai_apikey".
+if(localStorage.getItem("syp_openai_apikey")){
+  document.getElementById("openaiApiKey").value = localStorage.getItem("syp_openai_apikey");
+  document.getElementById("rememberOpenaiKey").checked = true;
+}
+document.getElementById("rememberOpenaiKey").addEventListener("change", (e)=>{
+  if(!e.target.checked) localStorage.removeItem("syp_openai_apikey");
+});
+
+document.getElementById("grayCatRefInput").addEventListener("change", async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const {dataUrl} = await resizeAndEncode(file, 1024);
+  grayCatRef = { dataUrl };
+  const img = document.getElementById("grayCatRefPreview");
+  img.src = dataUrl; img.style.display = "block";
+});
+
+function dataUrlToBlob(dataUrl){
+  const mimeMatch = /^data:([^;]+);base64,/.exec(dataUrl);
+  const mime = mimeMatch ? mimeMatch[1] : "image/png";
+  return new Blob([dataUrlToUint8Array(dataUrl)], {type:mime});
+}
+
+// One big labeled contact-sheet of every approved, colored stitch map —
+// this (not the live editor) is what actually gets sent to OpenAI, so it
+// deliberately has no editor chrome, no grid-selection controls, and no
+// customer photos anywhere near it.
+function captureStitchMapOverview(){
+  try{
+    const cellSize = 10, pad = 20, labelH = 22, gapX = 26, gapY = 34, cols = 3;
+    const items = [];
+    PART_ORDER.forEach(part=>{
+      const def = STITCH_MAPS[part];
+      for(let i=0;i<def.instances;i++){
+        const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[i]:def.label+" "+(i+1)) : def.label;
+        items.push({ label, canvas: renderPartGridCanvas(part, i, cellSize) });
+      }
+    });
+    if(!items.length) return null;
+    const colW = Math.max(...items.map(it=>it.canvas.width)) + gapX;
+    const rows = Math.ceil(items.length/cols);
+    const rowH = [];
+    for(let r=0;r<rows;r++){
+      const rowItems = items.slice(r*cols,(r+1)*cols);
+      rowH.push(Math.max(...rowItems.map(it=>it.canvas.height)) + labelH + gapY);
+    }
+    const titleH = 46;
+    const totalW = pad*2 + colW*cols;
+    const totalH = pad*2 + titleH + rowH.reduce((a,b)=>a+b,0);
+    const out = document.createElement("canvas");
+    out.width = totalW; out.height = totalH;
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,totalW,totalH);
+    ctx.fillStyle = "#2a231e";
+    ctx.textAlign = "center";
+    ctx.font = "bold 20px sans-serif";
+    ctx.fillText("Approved Stitch Maps — Color Reference (authoritative source for coat colors)", totalW/2, pad+22);
+    let cursorY = pad+titleH;
+    for(let r=0;r<rows;r++){
+      const rowItems = items.slice(r*cols,(r+1)*cols);
+      rowItems.forEach((it,ci)=>{
+        const x = pad + ci*colW;
+        ctx.textAlign = "left";
+        ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = "#2a231e";
+        ctx.fillText(it.label, x, cursorY+13);
+        ctx.drawImage(it.canvas, x, cursorY+labelH);
+      });
+      cursorY += rowH[r];
+    }
+    return out.toDataURL("image/png");
+  }catch(e){
+    console.error("captureStitchMapOverview failed:", e);
+    return null;
+  }
+}
+
+// The four fixed-camera 3D views (front/left/right/back), captured fresh
+// from the CURRENT stitch maps — never whatever angle the user last left
+// the live orbit view spinning at. Reuses capture3DSnapshotDataURL's fixed
+// yaw offsets so "front" is always truly the front and "back" is always
+// truly the back, consistently with the printed pattern's own renders.
+function captureCanonical3DViews(){
+  try{
+    const views = captureCrochetPreviewViews();
+    if(!views.front || !views.left || !views.right || !views.back) return null;
+    return views;
+  }catch(e){
+    console.error("captureCanonical3DViews failed:", e);
+    return null;
+  }
+}
+
+// Builds the instruction text sent alongside the reference images. Encodes
+// the source-priority order and every restriction from the brief (no
+// mirroring, no invented markings, gray-photo-is-construction-only, etc.)
+// so they travel with the request itself rather than living only in this
+// file's comments.
+function buildOpenAIImagePrompt(feedback){
+  const base = `Create one photorealistic studio product photograph of a single finished handmade crocheted cat, seated upright, fully visible, on a clean, softly lit studio background with a warm neutral backdrop and a soft shadow beneath it.
+
+You are given up to six reference images, in this order of authority — if any two references seem to disagree, resolve it using this priority order:
+1. A labeled stitch-map overview image — the ONLY authoritative source for coat colors and exactly where each color/marking sits on each body part.
+2. Four 3D render views, labeled front/left/right/back — the authoritative source for how those flat stitch maps wrap around the assembled three-dimensional cat, and for left/right orientation.
+3. A gray crocheted-cat reference photo — the authoritative source for crochet construction only: stitch texture, yarn thickness, stuffed proportions, body/head/ear/leg/tail shape, safety-eye style, embroidered nose, mouth, and whiskers. Use it ONLY for shape, material, and construction — never for color.
+4. This text — clarifies presentation only and must never override what the reference images show.
+
+STRICT RULES:
+- Coat colors and marking placement must come ONLY from the stitch-map overview and the four 3D render views. Do not use the gray reference photo's gray color anywhere unless the stitch maps themselves specify gray.
+- Do not invent, guess, or add any marking, patch, stripe, or color that is not visibly present in the stitch-map overview or the 3D render views.
+- Preserve every asymmetrical marking exactly as shown. The cat's left stays left and its right stays right in the output — do not mirror, reverse, flip, or swap the left and right sides.
+- Match the gray reference photo's crochet construction exactly: visible V-shaped single-crochet stitches, compact amigurumi stitch size, worsted-weight yarn texture, soft yarn fibers, natural stuffed shaping, subtle sewn seams between parts, and small realistic handmade imperfections.
+- The result must look genuinely hand-crocheted from yarn. Do not render it as smooth plastic, clay, polished vinyl, real animal fur, a living cat, a cartoon, an illustration, a low-poly 3D model, or fabric.
+- Do not add accessories, clothing, collars, bows, props, text, watermarks, logos, or a second cat.
+- Keep the same body proportions and seated pose shown in the 3D renders.
+- Frame the entire cat with nothing cropped out — ears, paws, and tail must all be fully visible.
+- Output one single complete image, not a collage or grid of multiple views.
+
+This image previews a crochet pattern for a paying customer, so accurate construction and correct marking placement matter more than artistic interpretation.`;
+
+  if(feedback && feedback.trim()){
+    return base + `
+
+REVISION REQUEST from the pattern maker — apply this change only, and keep every other detail (pose, proportions, and every unaffected color and marking) exactly the same as the previous result: "${feedback.trim()}"
+
+If this request would require adding a color or marking that is not shown in the stitch-map overview or the 3D render views, ignore that specific part of the request and keep the stitch-map colors as the source of truth instead.`;
+  }
+  return base;
+}
+
+// Lightweight, deliberately conservative heuristic — not a real language
+// model — that flags feedback mentioning a color word the current palette
+// doesn't have. It's a warning, not a hard block (per the brief): the
+// image prompt itself already tells OpenAI to ignore unsupported color
+// requests, this just surfaces the same concern to Annie before she spends
+// an API call on it.
+const FEEDBACK_COLOR_WORDS = ["black","white","cream","ivory","gray","grey","orange","ginger","brown","chocolate","tan","beige","pink","red","blue","navy","green","purple","lavender","yellow","gold","tortoiseshell","tortie","calico","charcoal","silver","rust"];
+function feedbackMentionsUnknownColor(feedback){
+  const text = (feedback||"").toLowerCase();
+  if(!text.trim()) return [];
+  const names = PALETTE.map(c=>c.name.toLowerCase());
+  const ids = PALETTE.map(c=>c.id.toLowerCase());
+  return FEEDBACK_COLOR_WORDS.filter(w=>text.includes(w))
+    .filter(w=>!names.some(n=>n.includes(w)) && !ids.some(i=>i.includes(w)));
+}
+
+// Checks everything the brief requires before spending an API call.
+// Returns the freshly rendered overview/views alongside blockers/warnings
+// so generateCrochetCatPhoto() doesn't have to render them twice.
+function validateImageGenerationInputs(){
+  const blockers = [], warnings = [];
+
+  let uncolored = 0;
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(!id) uncolored++; })));
+  if(uncolored>0) blockers.push(`${uncolored} stitch(es) are still uncolored — finish painting Step 3 first.`);
+
+  const unknownIds = new Set();
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id && !PALETTE.some(p=>p.id===id)) unknownIds.add(id); })));
+  if(unknownIds.size) blockers.push(`Unknown color id(s) painted but not in the palette: ${Array.from(unknownIds).join(", ")}.`);
+
+  if(!grayCatRef || !grayCatRef.dataUrl) blockers.push("Upload the gray finished crochet-cat reference photo first.");
+
+  const views = captureCanonical3DViews();
+  if(!views) blockers.push("One or more of the four fixed 3D views (front/left/right/back) failed to render.");
+
+  const overview = captureStitchMapOverview();
+  if(!overview) blockers.push("The stitch-map overview image failed to render.");
+
+  const key = document.getElementById("openaiApiKey").value.trim();
+  if(!key) blockers.push("Enter your OpenAI API key first.");
+
+  return { blockers, warnings, views, overview };
+}
+
+// Isolated on purpose (see the SECURITY NOTE / BROWSER LIMITATION comment
+// at the top of this section) so this is the one function a future server-
+// side proxy needs to replace.
+async function callOpenAIImageAPI(promptText, referenceDataUrls){
+  const key = document.getElementById("openaiApiKey").value.trim();
+  if(!key) throw new Error("Enter your OpenAI API key first.");
+  if(document.getElementById("rememberOpenaiKey").checked) localStorage.setItem("syp_openai_apikey", key);
+  const model = (document.getElementById("openaiImageModel").value||"").trim() || "gpt-image-2";
+  const quality = document.getElementById("openaiImageQuality").value || "high";
+
+  const form = new FormData();
+  form.append("model", model);
+  form.append("prompt", promptText);
+  form.append("quality", quality);
+  form.append("size", "1024x1536"); // portrait, fits a full seated cat and the customer PDF page
+  form.append("output_format", "png");
+  form.append("n", "1");
+  referenceDataUrls.forEach((dataUrl, idx)=>{
+    form.append("image[]", dataUrlToBlob(dataUrl), `reference-${idx}.png`);
+  });
+
+  let resp;
+  try{
+    resp = await fetch("https://api.openai.com/v1/images/edits", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + key }, // no other headers — fetch sets multipart boundary itself
+      body: form
+    });
+  }catch(networkErr){
+    // Browsers report a CORS rejection as an opaque network failure with no
+    // further detail attached — this is the expected failure mode for
+    // calling OpenAI's API directly from a browser (see the BROWSER
+    // LIMITATION comment above). Explain it rather than surfacing a bare
+    // "Failed to fetch".
+    throw new Error("The request never reached OpenAI (browser network/CORS error). Unlike Anthropic's API, OpenAI's API does not allow direct browser calls to api.openai.com from a webpage. This feature needs a small server-side proxy (one serverless function that forwards this exact request and holds the key) before it will work from a deployed site — see the comment above callOpenAIImageAPI() in the source.");
+  }
+  const data = await resp.json().catch(()=>null);
+  if(!resp.ok){
+    throw new Error((data && data.error && data.error.message) || (resp.status+" "+resp.statusText));
+  }
+  const item = data && data.data && data.data[0];
+  if(!item || !item.b64_json) throw new Error("OpenAI returned no image data.");
+  return "data:image/png;base64," + item.b64_json;
+}
+
+function displayGeneratedCrochetPhoto(dataUrl){
+  const wrap = document.getElementById("catPhotoPreviewWrap");
+  const img = document.getElementById("catPhotoPreviewImg");
+  img.src = dataUrl;
+  wrap.style.display = "block";
+  document.getElementById("btnRegenerateCatPhoto").disabled = false;
+  document.getElementById("btnApproveCatPhoto").disabled = false;
+  document.getElementById("catPhotoApprovedBadge").style.display = "none";
+}
+
+function approveGeneratedCrochetPhoto(){
+  if(!generatedCatPhoto || !generatedCatPhoto.dataUrl) return;
+  generatedCatPhoto.approved = true;
+  document.getElementById("catPhotoApprovedBadge").style.display = "inline";
+  const status = document.getElementById("catPhotoStatus");
+  status.textContent = "Approved — this photo will be included in the final customer PDF.";
+  status.className = "hint badge-ok";
+}
+
+async function generateCrochetCatPhoto(feedbackText){
+  const status = document.getElementById("catPhotoStatus");
+  const validationDiv = document.getElementById("catPhotoValidation");
+  const genBtn = document.getElementById("btnGenerateCatPhoto");
+  const regenBtn = document.getElementById("btnRegenerateCatPhoto");
+
+  const { blockers, warnings, views, overview } = validateImageGenerationInputs();
+  const colorWarnings = feedbackMentionsUnknownColor(feedbackText);
+  if(colorWarnings.length){
+    warnings.push(`Your feedback mentions "${colorWarnings.join(", ")}", which isn't in your current palette. The stitch maps stay the authoritative color source — if you actually want this color, add/edit it in the Step 2 palette and repaint the stitch map first, then regenerate.`);
+  }
+  if(blockers.length){
+    validationDiv.textContent = "Blocked: " + blockers.join(" ");
+    validationDiv.className = "hint badge-warn";
+    return;
+  }
+  validationDiv.textContent = warnings.length ? "Warning: " + warnings.join(" ") : "";
+  validationDiv.className = "hint" + (warnings.length ? " badge-warn" : "");
+
+  genBtn.disabled = true; regenBtn.disabled = true;
+  document.getElementById("btnApproveCatPhoto").disabled = true;
+  status.textContent = "Building reference images…";
+  status.className = "hint";
+
+  try{
+    const promptText = buildOpenAIImagePrompt(feedbackText);
+    // Order matches the source-priority list in the prompt itself: stitch
+    // maps (color truth) -> 3D views (orientation/wrapping) -> gray
+    // reference (construction only). No customer photo is ever in this list.
+    const referenceImages = [overview, views.front, views.left, views.right, views.back, grayCatRef.dataUrl];
+    status.textContent = "Calling OpenAI (a high-quality image can take 30–90 seconds)…";
+    const resultDataUrl = await callOpenAIImageAPI(promptText, referenceImages);
+    generatedCatPhoto = { dataUrl: resultDataUrl, approved:false, promptUsed:promptText };
+    displayGeneratedCrochetPhoto(resultDataUrl);
+    status.textContent = "Done. Review the photo below, then Approve it or adjust the feedback box and Regenerate.";
+    status.className = "hint badge-ok";
+  }catch(err){
+    status.textContent = "Request failed: " + err.message;
+    status.className = "hint badge-warn";
+  }
+  genBtn.disabled = false;
+  regenBtn.disabled = !generatedCatPhoto;
+}
+
+document.getElementById("btnGenerateCatPhoto").addEventListener("click", ()=>{
+  generateCrochetCatPhoto(document.getElementById("catPhotoFeedback").value);
+});
+document.getElementById("btnRegenerateCatPhoto").addEventListener("click", ()=>{
+  generateCrochetCatPhoto(document.getElementById("catPhotoFeedback").value);
+});
+document.getElementById("btnApproveCatPhoto").addEventListener("click", approveGeneratedCrochetPhoto);
+
 // Print output is rebuilt straight from the grids/scene each time (images +
 // per-round text), not from the plain-text preview blob, so it's the one
 // argument-free entry point now.
@@ -1735,13 +2539,13 @@ function buildPrintArea(){
 }
 
 /* ============================================================
-   ADD TO ORIGINAL PATTERN PDF
+   CREATE CUSTOMER PATTERN PDF — shared PDF helpers
    Keeps every existing page of Annie's real base-pattern PDF byte-for-byte
-   (loaded via pdf-lib, not recreated), and appends new pages after them:
-   the 3D rendering (front + back), then each part's colored stitch chart
-   with its row-by-row colors. This is a literal PDF merge, not a lookalike
-   rebuild — that's what makes this different from "Print / Save as PDF"
-   above, which only ever produces the app's OWN styled pages.
+   (loaded via pdf-lib, not recreated), and INSERTS new custom pages right
+   after the matching section — see buildCustomerPatternPdf() further down
+   for the actual insertion plan. This is a literal PDF merge, not a
+   lookalike rebuild — that's what makes it different from "Print / Save
+   as PDF" above, which only ever produces the app's OWN styled pages.
    ============================================================ */
 function dataUrlToUint8Array(dataUrl){
   const base64 = dataUrl.split(",")[1];
@@ -1769,132 +2573,419 @@ function wrapPdfText(font, text, size, maxWidth){
   if(line) lines.push(line);
   return lines;
 }
-async function mergeIntoBasePattern(){
-  const status = document.getElementById("mergeStatus");
-  const fileInput = document.getElementById("basePatternPdfInput");
-  const file = fileInput.files && fileInput.files[0];
-  if(!file){ status.textContent = "Select the base pattern PDF first."; status.className = "hint badge-warn"; return; }
-  if(typeof PDFLib === "undefined"){ status.textContent = "PDF library failed to load (needs internet the first time) — check your connection and retry."; status.className = "hint badge-warn"; return; }
+/* ============================================================
+   PATTERN INSTRUCTION FORMATTER
+   Converts a painted row into exact stitch-position color changes,
+   worded so it augments (never replaces) the original construction
+   instructions — increases/decreases/BLO/joins/etc. stay in the base
+   pattern, this only ever says where to switch yarn.
+   ============================================================ */
+function getColorRanges(row){
+  const ranges = [];
+  let i = 0;
+  while(i < row.length){
+    let j = i;
+    while(j < row.length && row[j] === row[i]) j++;
+    ranges.push({ start:i+1, end:j, colorId: row[i] }); // 1-indexed, inclusive
+    i = j;
+  }
+  return ranges;
+}
+const ORIGINAL_PATTERN_REFERENCES = {
+  frontLegs: "See original pattern page 5.",
+  backLegs: "See original pattern page 8.",
+  ear: "See original pattern pages 11–13.",
+  tail: "See original pattern page 14.",
+  head: "See original pattern page 16.",
+  body: "See original pattern pages 19, 22, and 26."
+};
+// A stitch map row is a round cut open into a flat strip; fraction 0 is the
+// seam where the last stitch meets stitch 1 again. Used to label front/back/
+// side positions from each part's real frontCenterFrac instead of guessing.
+function stitchNumberAtFrac(frac, n){
+  const idx = Math.round((((frac%1)+1)%1) * n) % n; // 0-based
+  return idx===0 ? n : idx; // the wrap point reads as "stitch n", right at the seam
+}
+function orientationLabelsForRow(part, rowLen){
+  const frontFrac = STITCH_MAPS[part].frontCenterFrac;
+  return {
+    frontStitch: stitchNumberAtFrac(frontFrac, rowLen),
+    backStitch: stitchNumberAtFrac(frontFrac+0.5, rowLen),
+    sideAStitch: stitchNumberAtFrac(frontFrac+0.25, rowLen),
+    sideBStitch: stitchNumberAtFrac(frontFrac-0.25, rowLen),
+  };
+}
+function formatColorInstructionLines(part, row1, row){
+  const isEar = part==="ear";
+  const unit = isEar ? "Row" : "Round";
+  const ranges = getColorRanges(row);
+  const n = row.length;
+  const lines = [`${unit} ${row1} — ${n} stitches`];
+  if(ranges.length<=1){
+    const only = ranges[0] ? colorLabel(ranges[0].colorId) : "?? (uncolored)";
+    lines.push(`Work the entire ${unit.toLowerCase()} in ${only}.`);
+  }else{
+    lines.push(`Start with ${colorLabel(ranges[0].colorId)}.`);
+    ranges.forEach(rg=>{
+      const posText = rg.start===rg.end ? `Stitch ${rg.start}` : `Stitches ${rg.start}–${rg.end}`;
+      lines.push(`${posText}: ${colorLabel(rg.colorId)}`);
+    });
+    const changePoints = ranges.slice(1).map(rg=>rg.start);
+    lines.push(`Color change${changePoints.length>1?"s":""} before stitch${changePoints.length>1?"es":""} ${changePoints.join(" and ")}.`);
+  }
+  lines.push(`Follow the original ${unit} ${row1} construction instruction.`);
+  return lines;
+}
 
+/* ============================================================
+   EXPORT VALIDATION
+   ============================================================ */
+function validateBeforeExport(){
+  const blockers = [], warnings = [];
+
+  let uncolored = 0;
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(!id) uncolored++; })));
+  if(uncolored>0) blockers.push(`${uncolored} stitch(es) are still uncolored.`);
+
+  const unknownIds = new Set();
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id && !PALETTE.some(p=>p.id===id)) unknownIds.add(id); })));
+  if(unknownIds.size) blockers.push(`Unknown color id(s) painted but not in the palette: ${Array.from(unknownIds).join(", ")}.`);
+
+  const useCustomBasePdf = document.getElementById("useCustomBasePdf");
+  const fileInput = document.getElementById("basePatternPdfInput");
+  if(useCustomBasePdf && useCustomBasePdf.checked && (!fileInput || !fileInput.files || !fileInput.files[0])){
+    blockers.push("\"Use a different base PDF\" is checked, but no file was chosen.");
+  }
+
+  if(!generatedCatPhoto || !generatedCatPhoto.approved || !generatedCatPhoto.dataUrl){
+    blockers.push("Generate and Approve a finished crochet cat photo above (\"Generate Finished Crochet Cat Photo\") before exporting the final PDF — it's missing.");
+  }
+
+  PART_ORDER.forEach(part=>{
+    const def = STITCH_MAPS[part];
+    for(let i=0;i<def.instances;i++){
+      const g = grids[gridKey(part,i)];
+      if(!g || g.length!==def.rows.length){
+        blockers.push(`${def.label} instance ${i+1}: grid round count doesn't match the base pattern.`);
+        continue;
+      }
+      def.rows.forEach((cnt,r)=>{
+        if(!g[r] || g[r].length!==cnt) blockers.push(`${def.label} round ${r+1}: stitch count doesn't match the base pattern (expected ${cnt}).`);
+      });
+    }
+  });
+
+  let renderOk = true;
+  try{ const s = build3DScene(); renderOk = !!(s && s.colors && s.colors.length); }
+  catch(e){ renderOk = false; }
+  if(!renderOk) blockers.push("The crochet preview could not render.");
+
+  try{
+    const report = JSON.parse(document.getElementById("markingReport").value);
+    if(report.unseen_zones && report.unseen_zones.length) warnings.push(`AI never saw: ${report.unseen_zones.join(", ")}.`);
+    if(report.confidence && report.confidence!=="high") warnings.push(`AI confidence was "${report.confidence}".`);
+  }catch(e){ /* no report yet, or hand-edited text isn't JSON — not a blocker on its own */ }
+  warnings.push("Yarn amounts on the yarn list are approximate estimates.");
+
+  return { blockers, warnings };
+}
+
+/* ============================================================
+   PDF PAGE BUILDERS
+   Small reusable pieces instead of one large merge function. pdfCtx bundles
+   the shared PDF resources (document, page size, fonts, colors) so each
+   builder only needs one argument.
+   ============================================================ */
+function createStyledPdfPage(pdfCtx){
+  const p = pdfCtx.pdfDoc.addPage([pdfCtx.pageW, pdfCtx.pageH]);
+  p.drawRectangle({x:0,y:0,width:pdfCtx.pageW,height:pdfCtx.pageH,color:pdfCtx.bg});
+  return p;
+}
+function pdfCenteredText(pdfCtx, page, text, y, size, font){
+  const f = font || pdfCtx.fontBold;
+  const w = f.widthOfTextAtSize(text, size);
+  page.drawText(text, {x:(pdfCtx.pageW-w)/2, y, size, font:f, color:pdfCtx.fg});
+}
+function pdfCenteredTextAt(pdfCtx, page, text, centerX, y, size, font){
+  const f = font || pdfCtx.fontBold;
+  const w = f.widthOfTextAtSize(text, size);
+  page.drawText(text, {x:centerX-w/2, y, size, font:f, color:pdfCtx.fg});
+}
+async function pdfEmbedDataUrlPng(pdfCtx, dataUrl){
+  return pdfCtx.pdfDoc.embedPng(dataUrlToUint8Array(dataUrl));
+}
+
+async function addChartPage(pdfCtx, part, instance){
+  const def = STITCH_MAPS[part];
+  const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[instance]:def.label+" "+(instance+1)) : def.label;
+  const { pageW, pageH, margin, fontReg } = pdfCtx;
+  const canvas = renderPartGridCanvas(part, instance, 14);
+  const chartImg = await pdfEmbedDataUrlPng(pdfCtx, canvas.toDataURL("image/png"));
+  const page = createStyledPdfPage(pdfCtx);
+  pdfCenteredText(pdfCtx, page, `Custom Color Map — ${label}`, pageH-margin-30, 32);
+
+  let noteY = pageH-margin-74;
+  if(part!=="ear"){
+    [ "Stitch 1 is the left edge of each chart row.",
+      "The row wraps in a circle, so the left and right edges touch.",
+      "The center of the row represents the front of this part where applicable." ]
+      .forEach(t=>{ pdfCenteredText(pdfCtx, page, t, noteY, 14, fontReg); noteY -= 19; });
+    noteY -= 6;
+  }
+  if(part==="head" || part==="body"){
+    const sampleLen = def.rows[Math.floor(def.rows.length/2)];
+    const ori = orientationLabelsForRow(part, sampleLen);
+    pdfCenteredText(pdfCtx, page, `Approx. stitch ${ori.frontStitch} = front · stitch ${ori.backStitch} = back · stitches ${ori.sideBStitch}/${ori.sideAStitch} = sides (positions shift slightly per round)`, noteY, 12.5, fontReg);
+    noteY -= 22;
+  }
+
+  const availW = pageW - margin*2;
+  const maxImgH = Math.max(120, noteY - margin - 10);
+  let iw = availW, ih = iw*(canvas.height/canvas.width);
+  if(ih > maxImgH){ ih = maxImgH; iw = ih*(canvas.width/canvas.height); }
+  const imgX = (pageW-iw)/2, imgY = Math.max(margin, noteY - ih - 10);
+  page.drawImage(chartImg, {x:imgX, y:imgY, width:iw, height:ih});
+  return page;
+}
+
+async function addColorInstructionPages(pdfCtx, part, instance){
+  const def = STITCH_MAPS[part];
+  const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[instance]:def.label+" "+(instance+1)) : def.label;
+  const { pageW, pageH, margin, fontReg } = pdfCtx;
+  const g = grids[gridKey(part, instance)];
+  const availW = pageW - margin*2;
+  const lineSize = 15, lineGap = 19;
+
+  let page = createStyledPdfPage(pdfCtx);
+  pdfCenteredText(pdfCtx, page, `Custom Color Instructions — ${label}`, pageH-margin-30, 30);
+  let cursorY = pageH-margin-70;
+  [ "Follow the original construction instructions for this part.",
+    "The list below only tells you where to change yarn colors.",
+    ORIGINAL_PATTERN_REFERENCES[part] ].filter(Boolean).forEach(t=>{
+    page.drawText(t, {x:margin, y:cursorY, size:14, font:fontReg, color:pdfCtx.fg});
+    cursorY -= 18;
+  });
+  cursorY -= 12;
+
+  const bottomLimit = margin;
+  function ensureRoom(neededLines){
+    if(cursorY - neededLines*lineGap < bottomLimit && cursorY < pageH-margin-140){
+      page = createStyledPdfPage(pdfCtx);
+      pdfCenteredText(pdfCtx, page, `${label} (cont.)`, pageH-margin-30, 26);
+      cursorY = pageH-margin-80;
+    }
+  }
+  g.forEach((row,r)=>{
+    const lines = formatColorInstructionLines(part, r+1, row);
+    const wrapped = [];
+    lines.forEach(line=>wrapPdfText(fontReg, line, lineSize, availW).forEach(l=>wrapped.push(l)));
+    ensureRoom(wrapped.length);
+    wrapped.forEach(line=>{
+      if(cursorY < bottomLimit){
+        page = createStyledPdfPage(pdfCtx);
+        pdfCenteredText(pdfCtx, page, `${label} (cont.)`, pageH-margin-30, 26);
+        cursorY = pageH-margin-80;
+      }
+      page.drawText(line, {x:margin, y:cursorY, size:lineSize, font:fontReg, color:pdfCtx.fg});
+      cursorY -= lineGap;
+    });
+    cursorY -= 8;
+  });
+}
+
+async function addPartPages(pdfCtx, part, instance){
+  await addChartPage(pdfCtx, part, instance);
+  await addColorInstructionPages(pdfCtx, part, instance);
+}
+
+async function addFinishedPreviewPages(pdfCtx){
+  const { pageW, pageH, margin, fontReg } = pdfCtx;
+  const customer = document.getElementById("customerName").value || "(unnamed)";
+
+  // Hero page: the customer-approved, OpenAI-generated photo — the actual
+  // "what your finished cat will look like" deliverable. buildCustomerPatternPdf()
+  // is only ever reached once validateBeforeExport() has confirmed an
+  // approved photo exists, so generatedCatPhoto is expected to be set here;
+  // the guard below is just defensive.
+  if(generatedCatPhoto && generatedCatPhoto.approved && generatedCatPhoto.dataUrl){
+    const page = createStyledPdfPage(pdfCtx);
+    pdfCenteredText(pdfCtx, page, "Your Custom Cat — Finished Preview", pageH-margin-30, 32);
+    pdfCenteredText(pdfCtx, page, customer, pageH-margin-68, 17, fontReg);
+    const img = await pdfEmbedDataUrlPng(pdfCtx, generatedCatPhoto.dataUrl);
+    const topY = pageH - margin - 100;
+    const availW = pageW - margin*2, maxH = topY - margin;
+    let iw = availW, ih = iw*(img.height/img.width);
+    if(ih > maxH){ ih = maxH; iw = ih*(img.width/img.height); }
+    const imgX = (pageW-iw)/2, imgY = topY - ih;
+    page.drawImage(img, {x:imgX, y:imgY, width:iw, height:ih});
+  }
+
+  // Second page: the four fixed-camera 3D construction views. Kept as a
+  // technical reference alongside the photorealistic hero image above —
+  // useful for seeing exactly where each color sits on the assembled cat.
+  const views = captureCrochetPreviewViews();
+  const page2 = createStyledPdfPage(pdfCtx);
+  pdfCenteredText(pdfCtx, page2, "3D Construction Reference", pageH-margin-30, 28);
+  const cellW = (pageW - margin*2 - 30)/2, cellH = cellW;
+  const gridTop = pageH-margin-90;
+  const cells = [
+    { label:"Front", url:views.front, x:margin, y:gridTop-cellH },
+    { label:"Back", url:views.back, x:margin+cellW+30, y:gridTop-cellH },
+    { label:"Left (Three-Quarter)", url:views.left, x:margin, y:gridTop-cellH*2-40 },
+    { label:"Right (Three-Quarter)", url:views.right, x:margin+cellW+30, y:gridTop-cellH*2-40 },
+  ];
+  for(const cell of cells){
+    if(!cell.url) continue;
+    const img2 = await pdfEmbedDataUrlPng(pdfCtx, cell.url);
+    page2.drawImage(img2, {x:cell.x, y:cell.y, width:cellW, height:cellH});
+    pdfCenteredTextAt(pdfCtx, page2, cell.label, cell.x+cellW/2, cell.y-24, 16);
+  }
+  return page2;
+}
+
+async function addYarnListPage(pdfCtx){
+  const { pageW, pageH, margin, fontReg } = pdfCtx;
+  const page = createStyledPdfPage(pdfCtx);
+  pdfCenteredText(pdfCtx, page, "Yarn Colors for This Cat", pageH-margin-30, 32);
+
+  const used = {};
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id) used[id]=(used[id]||0)+1; })));
+  let cursorY = pageH-margin-100;
+  const rowH = 50, swatchSize = 30;
+  Object.keys(used).sort((a,b)=>used[b]-used[a]).forEach(id=>{
+    const c = PALETTE.find(p=>p.id===id);
+    if(!c || cursorY < margin+rowH) return;
+    const [r,gg,b] = [1,3,5].map(i=>parseInt(c.hex.slice(i,i+2),16)/255);
+    page.drawRectangle({x:margin, y:cursorY-swatchSize+6, width:swatchSize, height:swatchSize, color:PDFLib.rgb(r,gg,b), borderColor:pdfCtx.fg, borderWidth:1});
+    const stitchCount = used[id];
+    // rough estimate only: ~1 inch of worsted-weight yarn per single crochet
+    // stitch is a common rule of thumb, not a precise gauge calculation
+    const approxYards = (stitchCount/36).toFixed(1);
+    const line = `${c.name} — ${c.brand} ${c.num}  ·  ~${stitchCount} stitches  ·  ~${approxYards} yds (approx.)`;
+    page.drawText(line, {x:margin+swatchSize+14, y:cursorY-14, size:16, font:fontReg, color:pdfCtx.fg});
+    cursorY -= rowH;
+  });
+  return page;
+}
+
+/* ============================================================
+   INSERTION-BASED PDF EXPORTER
+   Copies every original page byte-for-byte into a fresh output document,
+   in order, and splices in the matching custom pages right after the
+   relevant section — instead of appending everything at the end.
+   ============================================================ */
+async function buildCustomerPatternPdf(sourcePdf, onProgress){
+  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const outputPdf = await PDFDocument.create();
+  const srcPages = sourcePdf.getPages();
+  let pageW = 1500, pageH = 2250; // matches Annie's real pattern's own page size
+  if(srcPages.length){ const size = srcPages[0].getSize(); pageW = size.width; pageH = size.height; }
+
+  const pdfCtx = {
+    pdfDoc: outputPdf, pageW, pageH, margin: pageW*0.06,
+    bg: rgb(0.2,0.161,0.137),   // #332923, sampled from the real PDF's pages
+    fg: rgb(0.898,0.808,0.725), // #E5CEB9, sampled from the real PDF's text
+    fontBold: await outputPdf.embedFont(StandardFonts.HelveticaBold),
+    fontReg: await outputPdf.embedFont(StandardFonts.Helvetica),
+  };
+
+  const sourcePageCount = sourcePdf.getPageCount();
+  for(let sourceIndex=0; sourceIndex<sourcePageCount; sourceIndex++){
+    const [copiedPage] = await outputPdf.copyPages(sourcePdf, [sourceIndex]);
+    outputPdf.addPage(copiedPage);
+    const humanPageNumber = sourceIndex+1;
+    if(onProgress) onProgress(`Copying original page ${humanPageNumber}/${sourcePageCount}…`);
+
+    if(humanPageNumber===7){ await addPartPages(pdfCtx,"frontLegs",0); await addPartPages(pdfCtx,"frontLegs",1); }
+    if(humanPageNumber===10){ await addPartPages(pdfCtx,"backLegs",0); await addPartPages(pdfCtx,"backLegs",1); }
+    if(humanPageNumber===13){ await addPartPages(pdfCtx,"ear",0); await addPartPages(pdfCtx,"ear",1); }
+    if(humanPageNumber===15){ await addPartPages(pdfCtx,"tail",0); }
+    if(humanPageNumber===18){ await addPartPages(pdfCtx,"head",0); }
+    if(humanPageNumber===26){ await addPartPages(pdfCtx,"body",0); }
+    if(humanPageNumber===43){
+      if(onProgress) onProgress("Rendering finished-cat preview (4 views)…");
+      await addFinishedPreviewPages(pdfCtx);
+      await addYarnListPage(pdfCtx);
+    }
+  }
+  return outputPdf;
+}
+
+async function loadBundledBasePatternBytes(){
+  let resp;
+  try{
+    resp = await fetch("./base-pattern.pdf");
+  }catch(e){
+    throw new Error("Couldn't load the bundled base-pattern.pdf (" + e.message + "). If you're opening this file directly (file://), the browser blocks that — serve it from a local server or Netlify instead. Make sure base-pattern.pdf sits in the same folder as this page.");
+  }
+  if(!resp.ok){
+    throw new Error("Couldn't load the bundled base-pattern.pdf (server said " + resp.status + "). Make sure base-pattern.pdf sits in the same folder as this page.");
+  }
+  return await resp.arrayBuffer();
+}
+
+document.getElementById("btnMergePdf").addEventListener("click", async ()=>{
+  const status = document.getElementById("mergeStatus");
+  const validationDiv = document.getElementById("mergeValidation");
   const btn = document.getElementById("btnMergePdf");
+
+  const { blockers, warnings } = validateBeforeExport();
+  if(blockers.length){
+    validationDiv.textContent = "Blocked: " + blockers.join(" ");
+    validationDiv.className = "hint badge-warn";
+    return;
+  }
+
+  if(typeof PDFLib === "undefined"){
+    status.textContent = "PDF library failed to load (needs internet the first time) — check your connection and retry.";
+    status.className = "hint badge-warn";
+    return;
+  }
+
   btn.disabled = true;
   status.textContent = "Reading base pattern PDF…";
   status.className = "hint";
 
   try{
-    const { PDFDocument, StandardFonts, rgb } = PDFLib;
-    const baseBytes = await file.arrayBuffer();
-    const pdfDoc = await PDFDocument.load(baseBytes, {ignoreEncryption:true});
-
-    const existingPages = pdfDoc.getPages();
-    let pageW = 1500, pageH = 2250; // matches Annie's real pattern's own page size
-    if(existingPages.length){
-      const size = existingPages[existingPages.length-1].getSize();
-      pageW = size.width; pageH = size.height;
+    const { PDFDocument } = PDFLib;
+    const useCustomBasePdf = document.getElementById("useCustomBasePdf");
+    let sourceBytes;
+    if(useCustomBasePdf && useCustomBasePdf.checked){
+      const file = document.getElementById("basePatternPdfInput").files[0];
+      sourceBytes = await file.arrayBuffer();
+    } else {
+      sourceBytes = await loadBundledBasePatternBytes();
     }
-    const margin = pageW*0.06;
-    const bg = rgb(0.2,0.161,0.137);      // #332923, sampled from the real PDF's pages
-    const fg = rgb(0.898,0.808,0.725);    // #E5CEB9, sampled from the real PDF's text
-    const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const fontReg = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const sourcePdf = await PDFDocument.load(sourceBytes, {ignoreEncryption:true});
 
-    function newPage(){
-      const p = pdfDoc.addPage([pageW, pageH]);
-      p.drawRectangle({x:0,y:0,width:pageW,height:pageH,color:bg});
-      return p;
-    }
-    function centeredTitle(page, text, y, size){
-      const w = fontBold.widthOfTextAtSize(text, size);
-      page.drawText(text, {x:(pageW-w)/2, y, size, font:fontBold, color:fg});
-    }
-    async function embedDataUrlPng(dataUrl){
-      return pdfDoc.embedPng(dataUrlToUint8Array(dataUrl));
-    }
+    const pageCountWarning = sourcePdf.getPageCount()!==44
+      ? [`Selected PDF has ${sourcePdf.getPageCount()} pages, not the 44 this insertion plan was built for — custom pages may land in the wrong spot.`]
+      : [];
+    const allWarnings = warnings.concat(pageCountWarning);
+    validationDiv.textContent = allWarnings.length ? "Warnings: " + allWarnings.join(" ") : "No issues found.";
+    validationDiv.className = "hint " + (pageCountWarning.length ? "badge-warn" : "badge-ok");
 
-    status.textContent = "Rendering 3D front/back views…";
-    const customer = document.getElementById("customerName").value || "(unnamed)";
+    const outputPdf = await buildCustomerPatternPdf(sourcePdf, (msg)=>{ status.textContent = msg; });
 
-    // FINISHED CAT — front + back, side by side
-    const frontUrl = capture3DSnapshotDataURL(0);
-    const backUrl = capture3DSnapshotDataURL(Math.PI);
-    if(frontUrl && backUrl){
-      const page = newPage();
-      centeredTitle(page, "Finished Cat — Front & Back", pageH-margin-30, 34);
-      centeredTitle(page, customer, pageH-margin-70, 18);
-      const boxW = (pageW - margin*2 - 40)/2;
-      const frontImg = await embedDataUrlPng(frontUrl);
-      const backImg = await embedDataUrlPng(backUrl);
-      const imgY = pageH/2 - boxW/2;
-      page.drawImage(frontImg, {x:margin, y:imgY, width:boxW, height:boxW});
-      page.drawImage(backImg, {x:margin+boxW+40, y:imgY, width:boxW, height:boxW});
-      page.drawText("Front", {x:margin+boxW/2-20, y:imgY-28, size:20, font:fontBold, color:fg});
-      page.drawText("Back", {x:margin+boxW+40+boxW/2-18, y:imgY-28, size:20, font:fontBold, color:fg});
-    }
-
-    // PER-PART: colored chart + row-by-row colors
-    for(const part of PART_ORDER){
-      const def = STITCH_MAPS[part];
-      for(let i=0;i<def.instances;i++){
-        const label = def.instances>1 ? (def.instanceLabels?def.instanceLabels[i]:def.label+" "+(i+1)) : def.label;
-        status.textContent = "Adding "+label+"…";
-        const g = grids[gridKey(part,i)];
-        const canvas = renderPartGridCanvas(part, i, 14);
-        const chartDataUrl = canvas.toDataURL("image/png");
-        const chartImg = await embedDataUrlPng(chartDataUrl);
-
-        const page = newPage();
-        centeredTitle(page, label, pageH-margin-30, 34);
-
-        // fit the chart into the top ~42% of the content area, preserving
-        // its aspect ratio so square/round stitches don't stretch
-        const availW = pageW - margin*2;
-        const maxImgH = pageH*0.40;
-        let iw = availW, ih = iw*(canvas.height/canvas.width);
-        if(ih > maxImgH){ ih = maxImgH; iw = ih*(canvas.width/canvas.height); }
-        const imgX = (pageW-iw)/2, imgY = pageH-margin-90-ih;
-        page.drawImage(chartImg, {x:imgX, y:imgY, width:iw, height:ih});
-
-        // row-by-row colors below the chart, wrapped and paginated so a
-        // long part (e.g. the 30-round body) can't run off the page
-        let cursorY = imgY - 40;
-        let curPage = page;
-        const lineSize = 15, lineGap = 20, bottomLimit = margin;
-        g.forEach((row,r)=>{
-          const segs = runLengthEncodeRow(row);
-          const text = `Row ${r+1}: ` + segs.map(s=>`${s.count} sc ${colorLabel(s.id)}`).join(", ") + ` [${row.length}]`;
-          const lines = wrapPdfText(fontReg, text, lineSize, availW);
-          lines.forEach(line=>{
-            if(cursorY < bottomLimit){
-              curPage = newPage();
-              centeredTitle(curPage, label+" (cont.)", pageH-margin-30, 26);
-              cursorY = pageH-margin-90;
-            }
-            curPage.drawText(line, {x:margin, y:cursorY, size:lineSize, font:fontReg, color:fg});
-            cursorY -= lineGap;
-          });
-        });
-      }
-    }
-
-    status.textContent = "Saving merged PDF…";
-    const outBytes = await pdfDoc.save();
+    status.textContent = "Saving PDF…";
+    const outBytes = await outputPdf.save();
     const blob = new Blob([outBytes], {type:"application/pdf"});
     const url = URL.createObjectURL(blob);
+    const customer = document.getElementById("customerName").value || "Customer";
     const a = document.createElement("a");
     a.href = url;
-    a.download = (customer.replace(/[^a-z0-9]+/gi,"_") || "custom_cat") + "_Pattern_With_Stitch_Maps.pdf";
+    a.download = (customer.replace(/[^a-z0-9]+/gi,"_") || "Customer") + "_Custom_Crochet_Cat_Pattern.pdf";
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(()=>URL.revokeObjectURL(url), 5000);
 
-    status.textContent = "✓ Done — downloaded with " + existingPages.length + " original page(s) plus the new stitch map/3D pages.";
+    status.textContent = "✓ Done — customer pattern PDF downloaded (" + sourcePdf.getPageCount() + " original pages plus new custom pages spliced in).";
     status.className = "hint badge-ok";
   }catch(err){
     status.textContent = "Failed: " + err.message;
     status.className = "hint badge-warn";
   }
   btn.disabled = false;
-}
-document.getElementById("btnMergePdf").addEventListener("click", mergeIntoBasePattern);
+});
 
 /* init */
 renderGrid();
