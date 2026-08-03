@@ -70,6 +70,14 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
 .grid-scroll.panning{cursor:grab;}
 .cell{stroke:var(--line);stroke-width:1;}
 .cell:hover{stroke:var(--accent);stroke-width:2;}
+.cell.conf-low{stroke:var(--bad);stroke-width:1.6;stroke-dasharray:2,1.2;}
+.cell.conf-med{stroke:#C99A2E;stroke-width:1.4;stroke-dasharray:3,1.2;}
+.ref-photos{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.ref-photos img{height:110px;border-radius:6px;border:1px solid var(--line);object-fit:cover;}
+.ref-photos .lbl{font-size:11px;text-align:center;color:#666;margin-top:2px;}
+.ref-photo-cell{display:flex;flex-direction:column;align-items:center;}
+.conf-legend{display:flex;gap:14px;align-items:center;font-size:12px;color:#666;margin:4px 0 10px;flex-wrap:wrap;}
+.conf-legend .swatch-line{display:inline-block;width:20px;height:0;border-top-width:2px;border-top-style:dashed;margin-right:4px;vertical-align:middle;}
 .preview-box{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;}
 .preview3d-wrap{width:400px;height:400px;border:1px solid var(--card-edge);border-radius:8px;background:#fdfcf9;position:relative;overflow:hidden;cursor:grab;touch-action:none;}
 .preview3d-wrap.dragging{cursor:grabbing;}
@@ -228,6 +236,13 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
   <div class="card">
     <h2>Paint Stitch Maps</h2>
     <div class="hint">Every stitch already exists in the base pattern — the AI (and you) only ever assign a color to a square. Click a swatch below, then click, drag-paint, or bucket-fill squares. Internally every square has a permanent ID like <code>HEAD-R08-S14</code> (you never need to see these — it's just how the software keeps the pattern and the picture in sync).</div>
+
+    <div class="ref-photos" id="refPhotos"></div>
+    <div class="conf-legend" id="confLegend">
+      <span><span class="swatch-line" style="border-top-color:var(--bad);"></span>AI is unsure — check against the photos above</span>
+      <span><span class="swatch-line" style="border-top-color:#C99A2E;"></span>AI has medium confidence</span>
+      <span>Repainting a cell (even with the same color) clears its flag once you've confirmed it.</span>
+    </div>
 
     <div class="part-tabs" id="partTabs"></div>
 
@@ -435,16 +450,40 @@ let generatedCatPhoto = null; // {dataUrl, approved, promptUsed} - the OpenAI-ge
 
 function gridKey(part, inst){ return part + "#" + inst; }
 
+// confGrids mirrors grids' shape exactly, one cell per stitch, but stores
+// 'low'|'medium'|null (null = no AI-confidence flag, i.e. high/manually
+// confirmed) instead of a color id. Kept separate from `grids` rather than
+// packed into it so color logic (colorHex, PDF export, 3D preview) never
+// has to know this exists.
+let confGrids = {};
 function initGrids(){
   PART_ORDER.forEach(part=>{
     const def = STITCH_MAPS[part];
     for(let i=0;i<def.instances;i++){
       const key = gridKey(part,i);
       grids[key] = def.rows.map(count => new Array(count).fill(null));
+      confGrids[key] = def.rows.map(count => new Array(count).fill(null));
     }
   });
 }
 initGrids();
+
+function renderRefPhotos(){
+  const wrap = document.getElementById("refPhotos");
+  if(!wrap) return;
+  wrap.innerHTML = "";
+  const entries = Object.entries(photos);
+  if(entries.length===0){
+    wrap.innerHTML = '<div class="hint">No reference photos uploaded — go to Step 1 to add some, so you can check the AI\'s markings against the real cat while you paint.</div>';
+    return;
+  }
+  entries.forEach(([slot,p])=>{
+    const cell = document.createElement("div");
+    cell.className = "ref-photo-cell";
+    cell.innerHTML = `<img src="${p.dataUrl}"><div class="lbl">${slot}</div>`;
+    wrap.appendChild(cell);
+  });
+}
 
 /* ============================================================
    STEP NAV
@@ -455,7 +494,7 @@ document.querySelectorAll(".step-btn").forEach(btn=>{
     document.querySelectorAll("section.panel").forEach(p=>p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("panel-"+btn.dataset.step).classList.add("active");
-    if(btn.dataset.step==="3") renderGrid();
+    if(btn.dataset.step==="3") { renderRefPhotos(); renderGrid(); }
     if(btn.dataset.step==="4") { renderPreview3D(); renderYarnList(); renderConstructionNotes(); }
   });
 });
@@ -638,9 +677,14 @@ Rules:
 - Markings must use ONLY these types:
   sock      {zone: front_legs|back_legs|all|front_left|front_right|back_left|back_right, rows: 1-6, color}
   bib       {color, depth_rows: 3-10}            white/light chest patch
-  belly     {color}                              light underside
-  blaze     {color, width_sts: 2-8}              vertical strip up the face
-  muzzle    {color}                               chin/muzzle patch
+  belly     {color, row_start, row_end}          light underside — row_start/row_end
+            (1-indexed rounds, default 6-16) are optional, set them if the belly
+            patch you see is clearly taller/shorter/higher/lower than that default
+  blaze     {color, width_sts: 2-8, row_start, row_end}  vertical strip up the face —
+            row_start/row_end (default 6-14) optional, adjust if it doesn't span
+            the whole forehead-to-muzzle default range
+  muzzle    {color, row_start, row_end}           chin/muzzle patch — row_start/
+            row_end (default 13-17) optional, adjust to match what you see
   mask      {color, rows: 4-10}                   darker cap over top of head
   stripes   {zone: back|head_back|face|front_legs|back_legs|legs|tail, color, count: 1-6}  tabby banding —
             use "face" for forehead/cheek stripes (the tabby "M" mark and the
@@ -653,17 +697,26 @@ Rules:
   ear_color {color, which: both|left|right}
   patch     {part: body|head|frontLegs|backLegs|tail|ear, instance: 0 or 1 (only
             for frontLegs/backLegs/ear — 0=left, 1=right; omit for body/head/tail),
-            row_start, row_end (1-indexed rounds), center_frac (0-1: which side of
-            the round the patch is centered on — 0 or 1=back, 0.5=front-center,
-            0.25/0.75=either side), width_frac (0-1: how much of the round's
-            circumference it covers), color} — use ONLY for an irregular blotch
-            (calico/tortie patches, a random splotch on one side) that doesn't
-            fit any type above. Prefer the other types when they fit.
+            color, EITHER row_start+row_end+center_frac+width_frac (a single
+            constant-shape band — row_start/row_end are 1-indexed rounds,
+            center_frac 0-1 is which side of the round it's centered on where
+            0/1=back, 0.5=front-center, 0.25/0.75=either side, width_frac 0-1 is
+            how much of the round's circumference it covers) OR points: [{row,
+            center_frac, width_frac}, ...] (2-5 keyframes, ANY rows in ascending
+            order) — prefer "points" whenever the blotch's position or size
+            actually changes as it goes up/down the body (tapers, widens,
+            drifts to a different side): give one keyframe roughly every place
+            the outline visibly changes and the shape will be interpolated
+            between them, tracing the real outline much better than one fixed
+            band. Use "patch" ONLY for an irregular blotch (calico/tortie
+            patches, a random splotch on one side) that doesn't fit any type
+            above — prefer the other types when they fit.
 - If the cat has visible tabby striping ANYWHERE — forehead, the back of the head/nape, cheeks, legs, torso, or tail — report it with a "stripes" marking using the matching zone. Look specifically at the back/top of the head (behind the ears, between the crown and neck) in any photo that shows it — this spot is easy to miss but tabby cats very often have marking there, and it needs its own "head_back" marking (not "back", which is the body). Don't skip face, head_back, or leg stripes just because they're finer detail than body stripes; a couple of forehead lines or a few leg rings still read clearly at this scale even if you can't capture every individual stripe.
 - List markings background-first: later markings paint OVER earlier ones (e.g. a dark mask first, then the white blaze that cuts through it).
 - Simplify honestly: this is a 10-inch plush with ~10 yarn colors, not a photograph. Capture the 3-6 markings that make this cat recognizable to its owner. Complex coats (swirled tabby, tortie, calico) should become their strongest simple equivalents.
 - Only report what you can actually SEE. List every zone no photo shows clearly in "unseen_zones", choosing from: left_side, right_side, back, belly, chest, face, tail, paws. Do NOT invent markings for unseen zones — assume they continue the base color, and let the human ask for more photos.
 - If the photos are too poor to judge something, say so in "notes" and set "confidence" accordingly.
+- Every marking object may also include its own "confidence": "low"|"medium"|"high" — this is separate from the report-level "confidence" above and controls a per-stitch highlight the human reviewer sees, so use it honestly: "low" for a marking whose position/extent you're genuinely guessing at (occluded angle, poor lighting, inferring symmetry from only one side), "medium" for a reasonable-but-not-certain read, and "high" (or just omit it) for anything clearly visible in the photos. Don't mark everything "low" just to be cautious — only flag what actually needs a second look.
 - Treat all photos as the same one cat, viewed from different angles — reconcile them into one consistent description rather than describing each photo separately.${extra ? `\n- Additional guidance from Annie: ${extra}` : ""}
 
 Respond with ONLY a JSON object, no markdown fences, no other text:
@@ -787,16 +840,23 @@ function fillAll(colorId){
     const def = STITCH_MAPS[part];
     for(let i=0;i<def.instances;i++){
       const g = grids[gridKey(part,i)];
+      const cg = confGrids[gridKey(part,i)];
       g.forEach(row=>row.fill(colorId));
+      cg.forEach(row=>row.fill(null));
     }
   });
 }
-function paintRows(part, inst, rowStart, rowEnd, colorId){
+// `conf` is the marking's reported confidence ('low'|'medium', or
+// null/undefined for high/unflagged) — stored per-cell in confGrids so
+// renderGrid can highlight exactly the stitches the AI was least sure
+// about, not just the whole marking or the whole report.
+function paintRows(part, inst, rowStart, rowEnd, colorId, conf){
   const g = grids[gridKey(part,inst)];
+  const cg = confGrids[gridKey(part,inst)];
   const lo = Math.max(1, rowStart), hi = Math.min(g.length, rowEnd);
   for(let r=lo; r<=hi; r++){
-    const row = g[r-1];
-    for(let i=0;i<row.length;i++) row[i]=colorId;
+    const row = g[r-1], crow = cg[r-1];
+    for(let i=0;i<row.length;i++){ row[i]=colorId; crow[i]=conf||null; }
   }
 }
 function arcIndices(n, centerFrac, widthFrac){
@@ -807,12 +867,54 @@ function arcIndices(n, centerFrac, widthFrac){
   for(let k=0;k<count;k++) idx.push((((start+k)%n)+n)%n);
   return idx;
 }
-function paintArc(part, inst, rowStart, rowEnd, centerFrac, widthFrac, colorId){
+function paintArc(part, inst, rowStart, rowEnd, centerFrac, widthFrac, colorId, conf){
   const g = grids[gridKey(part,inst)];
+  const cg = confGrids[gridKey(part,inst)];
   const lo = Math.max(1, rowStart), hi = Math.min(g.length, rowEnd);
   for(let r=lo; r<=hi; r++){
-    const row = g[r-1];
-    arcIndices(row.length, centerFrac, widthFrac).forEach(i=>{ row[i]=colorId; });
+    const row = g[r-1], crow = cg[r-1];
+    arcIndices(row.length, centerFrac, widthFrac).forEach(i=>{ row[i]=colorId; crow[i]=conf||null; });
+  }
+}
+// Linear interpolation of a plain number between two keyframes.
+function lerp(a,b,t){ return a+(b-a)*t; }
+// Interpolation of a wraparound 0..1 fraction (a position around a round) —
+// takes the shorter way around instead of always going 0->1, so a patch
+// whose center drifts from e.g. 0.9 to 0.05 sweeps across the seam rather
+// than the long way around the back.
+function lerpFrac(a,b,t){
+  let diff = b-a;
+  if(diff>0.5) diff-=1; else if(diff<-0.5) diff+=1;
+  return ((a+diff*t)%1+1)%1;
+}
+// Paints an irregular blotch (calico/tortie patch, a random splotch) that's
+// allowed to change center/width row by row instead of being one constant
+// rectangle-on-a-curve. `points` is a small list of {row, center_frac,
+// width_frac} control points (as few as 2); every row between the lowest
+// and highest gets an interpolated arc. This is what lets a patch actually
+// taper, curve, or drift sideways to trace a real photo instead of forcing
+// every irregular marking into a single paintArc call.
+function paintArcKeyframes(part, inst, rawPoints, colorId, conf){
+  const def = STITCH_MAPS[part];
+  const pts = (rawPoints||[])
+    .map(p=>({
+      row: parseInt(p.row,10),
+      center_frac: p.center_frac!==undefined ? parseFloat(p.center_frac) : def.frontCenterFrac,
+      width_frac: p.width_frac!==undefined ? parseFloat(p.width_frac) : 0.25,
+    }))
+    .filter(p=>Number.isFinite(p.row))
+    .sort((a,b)=>a.row-b.row);
+  if(pts.length===0) return;
+  if(pts.length===1){ paintArc(part, inst, pts[0].row, pts[0].row, pts[0].center_frac, pts[0].width_frac, colorId, conf); return; }
+  const rowLo = pts[0].row, rowHi = pts[pts.length-1].row;
+  let seg = 0;
+  for(let r=rowLo; r<=rowHi; r++){
+    while(seg < pts.length-2 && r > pts[seg+1].row) seg++;
+    const p0=pts[seg], p1=pts[seg+1];
+    const t = p1.row===p0.row ? 0 : (r-p0.row)/(p1.row-p0.row);
+    const centerFrac = lerpFrac(p0.center_frac, p1.center_frac, t);
+    const widthFrac = Math.max(0, lerp(p0.width_frac, p1.width_frac, t));
+    paintArc(part, inst, r, r, centerFrac, widthFrac, colorId, conf);
   }
 }
 
@@ -825,12 +927,20 @@ const LEG_ZONES = {
 };
 const EAR_WHICH = { both:[["ear",0],["ear",1]], left:[["ear",0]], right:[["ear",1]] };
 
+// Maps a marking's reported confidence to what confGrids stores: only
+// "low"/"medium" get flagged (rendered as a highlighted stitch border in
+// Step 3); "high", missing, or unrecognized values all mean "no flag".
+function markingConfidence(m){
+  const c = String(m.confidence||"").trim().toLowerCase();
+  return (c==="low" || c==="medium") ? c : null;
+}
 function applyMarkingReportToGrids(report){
   if(report.base_color) fillAll(report.base_color);
   const body = STITCH_MAPS.body, head = STITCH_MAPS.head;
   (report.markings||[]).forEach(m=>{
     const color = m.color;
     if(!color) return;
+    const conf = markingConfidence(m);
     const mtype = String(m.type||"").trim().toLowerCase();
     switch(mtype){
       case "sock": {
@@ -838,7 +948,7 @@ function applyMarkingReportToGrids(report){
         const targets = LEG_ZONES[zone];
         if(!targets) break;
         const rows = parseInt(m.rows,10)||3;
-        targets.forEach(([p,i])=>paintRows(p,i,1,rows,color)); // round1 = paw tip
+        targets.forEach(([p,i])=>paintRows(p,i,1,rows,color,conf)); // round1 = paw tip
         break;
       }
       case "bib": case "chest": {
@@ -846,31 +956,37 @@ function applyMarkingReportToGrids(report){
         const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.28;
         const n = body.rows.length;
         // body is bottom-up; the bib hangs down from the neck (last round)
-        paintArc("body",0, n-depth+1, n, body.frontCenterFrac, width, color);
+        paintArc("body",0, n-depth+1, n, body.frontCenterFrac, width, color, conf);
         break;
       }
       case "belly": {
         const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.32;
-        paintArc("body",0, 6, 16, body.frontCenterFrac, width, color);
+        const rowStart = parseInt(m.row_start,10)||6;
+        const rowEnd = parseInt(m.row_end,10)||16;
+        paintArc("body",0, rowStart, rowEnd, body.frontCenterFrac, width, color, conf);
         break;
       }
       case "blaze": {
         const widthSts = parseInt(m.width_sts,10)||4;
+        const rowStart = parseInt(m.row_start,10)||6;
+        const rowEnd = parseInt(m.row_end,10)||14;
         // vertical strip up the front of the face, forehead to muzzle
-        for(let r=6;r<=14;r++){
+        for(let r=rowStart;r<=rowEnd;r++){
           const n = head.rows[r-1];
-          paintArc("head",0, r, r, head.frontCenterFrac, widthSts/n, color);
+          paintArc("head",0, r, r, head.frontCenterFrac, widthSts/n, color, conf);
         }
         break;
       }
       case "muzzle": {
         const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.22;
-        paintArc("head",0, 13, 17, head.frontCenterFrac, width, color);
+        const rowStart = parseInt(m.row_start,10)||13;
+        const rowEnd = parseInt(m.row_end,10)||17;
+        paintArc("head",0, rowStart, rowEnd, head.frontCenterFrac, width, color, conf);
         break;
       }
       case "mask": {
         // cap over the top of the head (round1=crown) — approximation, review!
-        paintRows("head",0, 1, parseInt(m.rows,10)||9, color);
+        paintRows("head",0, 1, parseInt(m.rows,10)||9, color, conf);
         break;
       }
       case "stripes": {
@@ -890,7 +1006,7 @@ function applyMarkingReportToGrids(report){
             const t = count===1 ? 0.5 : k/(count-1);
             const centerFrac = ((head.frontCenterFrac - spread/2 + spread*t) % 1 + 1) % 1;
             const n = head.rows[rowLo-1];
-            paintArc("head",0, rowLo, rowHi, centerFrac, strokeSts/Math.max(8,n), color);
+            paintArc("head",0, rowLo, rowHi, centerFrac, strokeSts/Math.max(8,n), color, conf);
           }
           break;
         }
@@ -910,7 +1026,7 @@ function applyMarkingReportToGrids(report){
             const t = count===1 ? 0.5 : k/(count-1);
             const centerFrac = ((backCenter - spread/2 + spread*t) % 1 + 1) % 1;
             const n = head.rows[rowLo-1];
-            paintArc("head",0, rowLo, rowHi, centerFrac, strokeSts/Math.max(8,n), color);
+            paintArc("head",0, rowLo, rowHi, centerFrac, strokeSts/Math.max(8,n), color, conf);
           }
           break;
         }
@@ -928,7 +1044,7 @@ function applyMarkingReportToGrids(report){
             const span = hi-lo;
             for(let k=0;k<count;k++){
               const r = lo + Math.round(span*(k+0.5)/count);
-              paintArc(p, i, r, r+widthRows-1, 0.5, 1.0, color);
+              paintArc(p, i, r, r+widthRows-1, 0.5, 1.0, color, conf);
             }
           });
           break;
@@ -948,18 +1064,18 @@ function applyMarkingReportToGrids(report){
         const span = spanEnd-spanStart;
         for(let k=0;k<count;k++){
           const r = spanStart + Math.round(span*(k+0.5)/count);
-          paintArc(part, inst, r, r+widthRows-1, arcCenter, arcWidth, color);
+          paintArc(part, inst, r, r+widthRows-1, arcCenter, arcWidth, color, conf);
         }
         break;
       }
       case "tail_tip":
-        paintRows("tail",0,1,parseInt(m.rows,10)||4,color); // round1 = tip
+        paintRows("tail",0,1,parseInt(m.rows,10)||4,color,conf); // round1 = tip
         break;
       case "ear_color": {
         const which = String(m.which||"both").trim().toLowerCase();
         const targets = EAR_WHICH[which];
         if(!targets) break;
-        targets.forEach(([p,i])=>paintRows(p,i,1,STITCH_MAPS.ear.rows.length,color));
+        targets.forEach(([p,i])=>paintRows(p,i,1,STITCH_MAPS.ear.rows.length,color,conf));
         break;
       }
       case "patch": {
@@ -967,20 +1083,29 @@ function applyMarkingReportToGrids(report){
         if(!STITCH_MAPS[part]) break;
         const inst = m.instance||0;
         const def = STITCH_MAPS[part];
-        const rowStart = parseInt(m.row_start,10)||1;
-        const rowEnd = parseInt(m.row_end,10)||def.rows.length;
-        const centerFrac = m.center_frac!==undefined?parseFloat(m.center_frac):def.frontCenterFrac;
-        const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.25;
-        paintArc(part, inst, rowStart, rowEnd, centerFrac, width, color);
+        // Irregular blotches (calico/tortie patches) can be given as a
+        // short list of {row, center_frac, width_frac} keyframes instead
+        // of one fixed row_start/row_end/center_frac/width_frac — lets the
+        // shape taper or drift sideways to trace the actual photo instead
+        // of always painting one constant-width rectangle-on-a-curve.
+        if(Array.isArray(m.points) && m.points.length){
+          paintArcKeyframes(part, inst, m.points, color, conf);
+        } else {
+          const rowStart = parseInt(m.row_start,10)||1;
+          const rowEnd = parseInt(m.row_end,10)||def.rows.length;
+          const centerFrac = m.center_frac!==undefined?parseFloat(m.center_frac):def.frontCenterFrac;
+          const width = m.width_frac!==undefined?parseFloat(m.width_frac):0.25;
+          paintArc(part, inst, rowStart, rowEnd, centerFrac, width, color, conf);
+        }
         break;
       }
       // legacy fallbacks, in case an older hand-edited report uses the
       // pre-v2 {type, zone:"chest"|"front_legs"|..., depth_rows} shape
       default: {
         const depth = Math.max(1, Math.min(10, m.depth_rows||3));
-        if(m.zone==="ears") EAR_WHICH.both.forEach(([p,i])=>paintRows(p,i,1,STITCH_MAPS.ear.rows.length,color));
-        else if(m.zone==="face") paintArc("head",0,13,17,head.frontCenterFrac,0.3,color);
-        else if(m.zone==="tail") paintRows("tail",0,1,depth,color);
+        if(m.zone==="ears") EAR_WHICH.both.forEach(([p,i])=>paintRows(p,i,1,STITCH_MAPS.ear.rows.length,color,conf));
+        else if(m.zone==="face") paintArc("head",0,13,17,head.frontCenterFrac,0.3,color,conf);
+        else if(m.zone==="tail") paintRows("tail",0,1,depth,color,conf);
         break;
       }
     }
@@ -1045,6 +1170,7 @@ function renderGrid(){
   const def = STITCH_MAPS[currentPart];
   const rows = def.rows;
   const g = grids[gridKey(currentPart,currentInstance)];
+  const cg = confGrids[gridKey(currentPart,currentInstance)];
   const maxCount = Math.max(...rows);
   const svg = document.getElementById("stitchSvg");
   const w = maxCount*(CELL+GAP);
@@ -1061,7 +1187,8 @@ function renderGrid(){
       rect.setAttribute("y",r*(CELL+GAP));
       rect.setAttribute("width",CELL);
       rect.setAttribute("height",CELL);
-      rect.setAttribute("class","cell");
+      const flag = cg[r][c];
+      rect.setAttribute("class","cell"+(flag==="low"?" conf-low":flag==="medium"?" conf-med":""));
       rect.setAttribute("fill", colorHex(g[r][c]));
       rect.dataset.row=r; rect.dataset.col=c;
       const instSuffix = STITCH_MAPS[currentPart].instances>1 ? String(currentInstance+1) : "";
@@ -1089,22 +1216,28 @@ function setupGridHandlers(){
   let panStart=null;
 
   function activeGrid(){ return grids[gridKey(currentPart,currentInstance)]; }
+  function activeConfGrid(){ return confGrids[gridKey(currentPart,currentInstance)]; }
 
   function paintCell(rect){
-    const g = activeGrid();
+    const g = activeGrid(); const cg = activeConfGrid();
     const r=+rect.dataset.row, c=+rect.dataset.col;
     const from = g[r][c];
-    if(from===selectedColor) return;
+    const fromConf = cg[r][c];
+    // A cell that's still flagged (low/medium confidence) needs to update
+    // even when the color you're painting happens to match already — that
+    // click is the human confirming this stitch, so the flag must clear.
+    if(from===selectedColor && !fromConf) return;
     g[r][c]=selectedColor;
+    cg[r][c]=null;
+    rect.setAttribute("class","cell");
     rect.setAttribute("fill", colorHex(selectedColor));
-    strokeChanges.push({part:currentPart,inst:currentInstance,r,c,from,to:selectedColor});
+    strokeChanges.push({part:currentPart,inst:currentInstance,r,c,from,to:selectedColor,fromConf,toConf:null});
   }
   function floodFill(rect){
-    const g = activeGrid();
+    const g = activeGrid(); const cg = activeConfGrid();
     const rows = STITCH_MAPS[currentPart].rows;
     const r0=+rect.dataset.row, c0=+rect.dataset.col;
     const target = g[r0][c0];
-    if(target===selectedColor) return;
     const stack=[[r0,c0]];
     const seen=new Set();
     while(stack.length){
@@ -1115,9 +1248,16 @@ function setupGridHandlers(){
       if(c<0||c>=rows[r]) continue;
       if(g[r][c]!==target) continue;
       seen.add(k);
-      const from=g[r][c];
-      g[r][c]=selectedColor;
-      strokeChanges.push({part:currentPart,inst:currentInstance,r,c,from,to:selectedColor});
+      const from=g[r][c]; const fromConf=cg[r][c];
+      // Same guard as paintCell: a flagged cell must still update even when
+      // the color you're filling with matches already, so bucket-filling an
+      // already-correct region clears its confidence flags instead of
+      // leaving them stuck (this loop still traverses same-color neighbors
+      // either way, to find every flagged cell in the region).
+      if(from!==selectedColor || fromConf){
+        g[r][c]=selectedColor; cg[r][c]=null;
+        strokeChanges.push({part:currentPart,inst:currentInstance,r,c,from,to:selectedColor,fromConf,toConf:null});
+      }
       stack.push([r+1,c],[r-1,c],[r,c+1],[r,c-1]);
     }
     renderGrid();
@@ -1162,7 +1302,9 @@ function commitStroke(){
 
 function applyChange(change, useTo){
   const g = grids[gridKey(change.part,change.inst)];
+  const cg = confGrids[gridKey(change.part,change.inst)];
   g[change.r][change.c] = useTo?change.to:change.from;
+  cg[change.r][change.c] = useTo ? (change.toConf??null) : (change.fromConf??null);
 }
 document.getElementById("btnUndo").addEventListener("click", ()=>{
   const batch = undoStack.pop();
@@ -1181,9 +1323,10 @@ document.getElementById("btnRedo").addEventListener("click", ()=>{
 document.getElementById("btnResetSection").addEventListener("click", ()=>{
   if(!confirm("Clear all colors on this part? This can be undone.")) return;
   const g = grids[gridKey(currentPart,currentInstance)];
+  const cg = confGrids[gridKey(currentPart,currentInstance)];
   const batch=[];
   g.forEach((row,r)=>row.forEach((val,c)=>{
-    if(val!==null){ batch.push({part:currentPart,inst:currentInstance,r,c,from:val,to:null}); row[c]=null; }
+    if(val!==null){ batch.push({part:currentPart,inst:currentInstance,r,c,from:val,to:null,fromConf:cg[r][c],toConf:null}); row[c]=null; cg[r][c]=null; }
   }));
   if(batch.length){ undoStack.push(batch); redoStack=[]; }
   renderGrid();
