@@ -683,8 +683,10 @@ Rules:
   blaze     {color, width_sts: 2-8, row_start, row_end}  vertical strip up the face —
             row_start/row_end (default 6-14) optional, adjust if it doesn't span
             the whole forehead-to-muzzle default range
-  muzzle    {color, row_start, row_end}           chin/muzzle patch — row_start/
-            row_end (default 13-17) optional, adjust to match what you see
+  muzzle    {color, row_start, row_end}           chin/muzzle patch — the lower
+            jaw and whisker-pad area BELOW the nose, not the nose itself —
+            row_start/row_end (default 13-17) optional, adjust to match what
+            you see
   mask      {color, rows: 4-10}                   darker cap over top of head
   stripes   {zone: back|head_back|face|front_legs|back_legs|legs|tail, color, count: 1-6}  tabby banding —
             use "face" for forehead/cheek stripes (the tabby "M" mark and the
@@ -711,9 +713,10 @@ Rules:
             band. Use "patch" ONLY for an irregular blotch (calico/tortie
             patches, a random splotch on one side) that doesn't fit any type
             above — prefer the other types when they fit.
+- Check specifically for a distinctly colored nose and dark rings around the eyes — both are small but very recognizable, and easy to lose inside a broader mask/blaze/muzzle call. On the head, the eyes sit around round 11-12 (one on each side of the face-front column) and the nose sits around round 14-15 (centered on the face-front column, just below the eyes) — "mask" cannot reach this far down (it only paints from round 1), so use "patch" on "head" instead: a narrow patch centered at round 14-15, center_frac 0.5, width_frac ~0.08-0.15 for a nose that's a different color than the muzzle around it (e.g. solid black or pink against a lighter face); one or two small patches at round 11-12, center_frac offset roughly 0.15-0.25 either side of 0.5, for dark rings/"eyeliner" around one or both eyes. List these patches AFTER any mask/blaze/muzzle markings so they paint on top instead of getting covered by them.
 - If the cat has visible tabby striping ANYWHERE — forehead, the back of the head/nape, cheeks, legs, torso, or tail — report it with a "stripes" marking using the matching zone. Look specifically at the back/top of the head (behind the ears, between the crown and neck) in any photo that shows it — this spot is easy to miss but tabby cats very often have marking there, and it needs its own "head_back" marking (not "back", which is the body). Don't skip face, head_back, or leg stripes just because they're finer detail than body stripes; a couple of forehead lines or a few leg rings still read clearly at this scale even if you can't capture every individual stripe.
 - List markings background-first: later markings paint OVER earlier ones (e.g. a dark mask first, then the white blaze that cuts through it).
-- Simplify honestly: this is a 10-inch plush with ~10 yarn colors, not a photograph. Capture the 3-6 markings that make this cat recognizable to its owner. Complex coats (swirled tabby, tortie, calico) should become their strongest simple equivalents.
+- Simplify the SHAPE, not the COUNT: this is a 10-inch plush with ~10 yarn colors, not a photograph, so a swirled/blotched or fine-detail pattern becomes its strongest simple band or patch rather than an attempt at literal photographic detail — but report every zone that genuinely has a visible marking. There is no target number of markings to hit or stay under: a simple solid-color cat might truthfully have 1-2 markings, while a heavily patched tabby, tortie, or calico coat can truthfully need 8-10+. Dropping a marking that's actually visible just to keep the list short is a bigger error than a longer list.
 - Only report what you can actually SEE. List every zone no photo shows clearly in "unseen_zones", choosing from: left_side, right_side, back, belly, chest, face, tail, paws. Do NOT invent markings for unseen zones — assume they continue the base color, and let the human ask for more photos.
 - If the photos are too poor to judge something, say so in "notes" and set "confidence" accordingly.
 - Every marking object may also include its own "confidence": "low"|"medium"|"high" — this is separate from the report-level "confidence" above and controls a per-stitch highlight the human reviewer sees, so use it honestly: "low" for a marking whose position/extent you're genuinely guessing at (occluded angle, poor lighting, inferring symmetry from only one side), "medium" for a reasonable-but-not-certain read, and "high" (or just omit it) for anything clearly visible in the photos. Don't mark everything "low" just to be cautious — only flag what actually needs a second look.
@@ -740,10 +743,53 @@ After you answer, I may send you follow-up instructions in plain language asking
   document.getElementById("chatLog").innerHTML = "";
   logChat("user", "(sent "+imgs.length+" photo"+(imgs.length>1?"s":"")+" for first analysis"+(extra?": "+extra:"")+")");
 
+  // Two-pass analysis: the first pass's own draft is handed back to the model
+  // as a second turn, asking it to adversarially re-check its own answer
+  // zone-by-zone against the photos before finalizing. Found (via a multi-
+  // candidate test against 7 reference cats, 2026-08) to catch real misses
+  // -- an uncaptured ear/eye/nose color, a dropped one-sided patch, an
+  // under-extended mask/sock -- that a single pass reliably left in, even
+  // when the first draft was otherwise reasonable.
+  const critiquePrompt = `Here is the draft marking report you just wrote for this same cat, from the same photos above (your previous message, verbatim).
+
+Before this ships, re-examine it as an adversarial second reviewer — assume it's incomplete or slightly wrong until you've actually re-checked, don't assume it's fine just because you wrote it.
+
+Go photo-by-photo and zone-by-zone. For EACH of these zones, look back at the photos and ask "does anything visible here differ from what the draft says?": face, top-of-head/nape, ears, eyes, nose, muzzle, neck/chest, torso, belly, front-left leg/paw, front-right leg/paw, back-left leg/paw, back-right leg/paw, tail.
+
+Specifically hunt for the mistakes that are easy to make on a first pass — list to yourself what you might have missed before finalizing:
+- A tabby stripe zone (face, head_back, back, legs, tail) that's visible in a photo but has no "stripes" marking, or has one in the wrong zone — check the back of the head/nape especially, it's the single easiest spot to skip
+- Ear color, eye rims, or nose color that's a different shade than the fur around it but wasn't given its own ear_color/patch marking
+- A patch, sock, mask, or bib whose extent (rows/depth/width) is clearly too small or too large for what the photo actually shows — e.g. a dark face mask that only covers part of a face that's actually dark all over
+- A patch, sock, or bib that's clearly visible in one photo but got left out because a different angle didn't show it as clearly
+- A marking assigned to the wrong zone or the wrong yarn id
+- A real asymmetry (marking on only one ear, one leg, or one side of the face) that got smoothed into a symmetric call, or the reverse — a symmetric marking reported as one-sided
+
+There is no target number of markings to stay under — if this re-check turns up a real, clearly visible marking (or a clearly wrong extent) your draft got wrong, fix it, even if the total marking count goes up. Only combine or drop detail that's genuinely redundant or too fine to matter at this scale, never something you can actually see just to keep the list short.
+
+Now produce the corrected, complete marking report: the full JSON again, in the exact same schema as before (base_color, markings, eye_color, unseen_zones, confidence, notes) — not a list of changes, not a diff. Keep every marking type/field definition exactly as given in the first message. If you found and fixed something, briefly say what in "notes" (e.g. "self-check added missed head_back stripes and ear_color"). If the draft genuinely already held up under this check, return it as is.
+
+Respond with ONLY a JSON object, no markdown fences, no other text:
+{
+  "base_color": "<yarn id for the main coat>",
+  "markings": [ ...marking objects, same types/fields as defined in the first message... ],
+  "eye_color": "<plain-language eye color, for safety-eye selection, not yarn>",
+  "unseen_zones": ["<zones no photo shows clearly, empty list if full coverage>"],
+  "confidence": "high|medium|low",
+  "notes": "<anything the human reviewer should know, including a brief note of what the self-check changed, if anything>"
+}`;
+
   try{
-    const text = await callClaude();
-    document.getElementById("markingReport").value = cleanJsonText(text);
-    logChat("assistant", text);
+    const draftText = await callClaude();
+    logChat("assistant", draftText);
+    status.textContent = "First pass done. Double-checking against the photos…";
+    status.className = "hint";
+
+    conversation.push({role:"user", content:[{type:"text", text:critiquePrompt}]});
+    logChat("user", "(asking the AI to self-check its draft against the photos before finalizing)");
+
+    const finalText = await callClaude();
+    document.getElementById("markingReport").value = cleanJsonText(finalText);
+    logChat("assistant", finalText);
     status.textContent = "Done. Review the marking report below, apply it, or refine it in the chat.";
     status.className = "badge-ok hint";
   }catch(err){
