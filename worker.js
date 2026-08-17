@@ -17,7 +17,7 @@ const ALLOWED_ORIGINS = [
 
 // The website cannot change these — the Worker always enforces them.
 const CLAUDE_MODEL = "claude-sonnet-5";
-const CLAUDE_MAX_TOKENS = 2500;
+const CLAUDE_MAX_TOKENS = 4000;
 
 export default {
   async fetch(request, env) {
@@ -65,6 +65,13 @@ export default {
         body: JSON.stringify({
           model: CLAUDE_MODEL,
           max_tokens: CLAUDE_MAX_TOKENS,
+          // Extended thinking is on by default for this model and was
+          // silently eating the whole max_tokens budget on longer prompts
+          // (thinking-only response, no text block, stop_reason "max_tokens")
+          // -- this task is a straightforward visual-classification-to-JSON
+          // call with no need for it, so turn it off rather than gamble on
+          // a bigger budget outrunning it.
+          thinking: { type: "disabled" },
           messages: body.messages,
         }),
       });
