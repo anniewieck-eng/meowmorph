@@ -17,7 +17,7 @@ const ALLOWED_ORIGINS = [
 
 // The website cannot change these — the Worker always enforces them.
 const CLAUDE_MODEL = "claude-sonnet-5";
-const CLAUDE_MAX_TOKENS = 4000;
+const CLAUDE_MAX_TOKENS = 6000;
 
 export default {
   async fetch(request, env) {
@@ -65,13 +65,17 @@ export default {
         body: JSON.stringify({
           model: CLAUDE_MODEL,
           max_tokens: CLAUDE_MAX_TOKENS,
-          // Extended thinking is on by default for this model and was
+          // Extended thinking defaults to uncapped for this model and was
           // silently eating the whole max_tokens budget on longer prompts
-          // (thinking-only response, no text block, stop_reason "max_tokens")
-          // -- this task is a straightforward visual-classification-to-JSON
-          // call with no need for it, so turn it off rather than gamble on
-          // a bigger budget outrunning it.
-          thinking: { type: "disabled" },
+          // (thinking-only response, no text block, stop_reason "max_tokens").
+          // Fully disabling it instead made the model reason inline in the
+          // visible text (breaking the "respond with ONLY JSON" contract) --
+          // "adaptive" + a fixed effort level is what actually keeps the
+          // reasoning in the hidden thinking block while bounding it, so the
+          // two-pass self-critique (which genuinely benefits from it) can't
+          // run away with the budget again.
+          thinking: { type: "adaptive" },
+          output_config: { effort: "medium" },
           messages: body.messages,
         }),
       });
