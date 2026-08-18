@@ -362,7 +362,7 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
 
   <div class="card">
     <h2>Create Customer Pattern PDF</h2>
-    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also adds a crochet-style finished-cat preview and yarn list near the end. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code>, sitting in the same folder) — nothing to upload.</div>
+    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also builds a personalized cover page (using the approved generated cat photo and customer name above), and adds a crochet-style finished-cat preview and yarn list near the end. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code>, sitting in the same folder) — nothing to upload.</div>
     <div class="row" style="margin-top:10px;">
       <label style="display:flex;align-items:center;gap:6px;font-family:system-ui,sans-serif;font-size:13px;">Preview quality
         <select id="previewQuality">
@@ -3002,10 +3002,53 @@ async function addYarnListPage(pdfCtx){
 }
 
 /* ============================================================
+   COVER PAGE — the one page of the base pattern we never copy
+   byte-for-byte. The bundled base-pattern.pdf's own page 1 carries
+   whatever cover was baked in when it was designed (a specific cat's
+   name/photo) — we replace it every export with this customer's
+   approved generated-cat photo and name instead, so the cover always
+   matches the pattern inside instead of a stale placeholder cat.
+   ============================================================ */
+async function addCoverPage(pdfCtx){
+  const { pageW, pageH, margin, fontBold, fontReg } = pdfCtx;
+  const customer = (document.getElementById("customerName").value || "").trim();
+  const page = createStyledPdfPage(pdfCtx);
+
+  pdfCenteredText(pdfCtx, page, "Custom Cat Pattern", pageH-margin-70, 46, fontBold);
+  if(customer) pdfCenteredText(pdfCtx, page, `of ${customer}`, pageH-margin-125, 32, fontReg);
+  pdfCenteredText(pdfCtx, page, "CROCHET PATTERN", pageH-margin-165, 16, fontReg);
+
+  const footerLines = [
+    "Skill Level: Beginner – Intermediate (basic crochet knowledge recommended)",
+    "Finished Size: Approx 27cm / 10.5 inches (customizable)",
+    customer ? `Made just for ${customer} and their cat.` : "Made just for you and your cat.",
+  ];
+  const footerY = margin+50;
+  const imgTop = pageH - margin - 200;
+  const imgBottom = footerY + footerLines.length*20 + 20;
+
+  if(generatedCatPhoto && generatedCatPhoto.dataUrl){
+    const img = await pdfEmbedDataUrlPng(pdfCtx, generatedCatPhoto.dataUrl);
+    const availW = pageW - margin*2 - 60, availH = imgTop - imgBottom;
+    let iw = availW, ih = iw*(img.height/img.width);
+    if(ih > availH){ ih = availH; iw = ih*(img.width/img.height); }
+    const imgX = (pageW-iw)/2, imgY = imgBottom + (availH-ih)/2;
+    page.drawImage(img, {x:imgX, y:imgY, width:iw, height:ih});
+  }
+
+  footerLines.forEach((line,i)=>{
+    pdfCenteredText(pdfCtx, page, line, footerY + (footerLines.length-1-i)*20, 13, fontReg);
+  });
+  return page;
+}
+
+/* ============================================================
    INSERTION-BASED PDF EXPORTER
    Copies every original page byte-for-byte into a fresh output document,
    in order, and splices in the matching custom pages right after the
-   relevant section — instead of appending everything at the end.
+   relevant section — instead of appending everything at the end. The one
+   exception is page 1 (the cover), which is always rebuilt fresh via
+   addCoverPage() above instead of copied — see that comment for why.
    ============================================================ */
 async function buildCustomerPatternPdf(sourcePdf, onProgress){
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
@@ -3024,10 +3067,15 @@ async function buildCustomerPatternPdf(sourcePdf, onProgress){
 
   const sourcePageCount = sourcePdf.getPageCount();
   for(let sourceIndex=0; sourceIndex<sourcePageCount; sourceIndex++){
-    const [copiedPage] = await outputPdf.copyPages(sourcePdf, [sourceIndex]);
-    outputPdf.addPage(copiedPage);
     const humanPageNumber = sourceIndex+1;
-    if(onProgress) onProgress(`Copying original page ${humanPageNumber}/${sourcePageCount}…`);
+    if(humanPageNumber===1){
+      if(onProgress) onProgress("Building personalized cover page…");
+      await addCoverPage(pdfCtx);
+    }else{
+      const [copiedPage] = await outputPdf.copyPages(sourcePdf, [sourceIndex]);
+      outputPdf.addPage(copiedPage);
+      if(onProgress) onProgress(`Copying original page ${humanPageNumber}/${sourcePageCount}…`);
+    }
 
     if(humanPageNumber===7){ await addPartPages(pdfCtx,"frontLegs",0); await addPartPages(pdfCtx,"frontLegs",1); }
     if(humanPageNumber===10){ await addPartPages(pdfCtx,"backLegs",0); await addPartPages(pdfCtx,"backLegs",1); }
