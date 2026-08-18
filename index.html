@@ -15,6 +15,10 @@
      pattern PDF bytes and append new pages to it in the browser, rather
      than trying to recreate its pages from scratch. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<!-- fontkit: lets pdf-lib embed the real Baloo 2 / Quicksand font files (see
+     app/fonts/) into the pages this site adds to the pattern PDF, so they
+     match the original pattern's own type instead of a generic PDF font. -->
+<script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
 <style>
 :root{
   --paper:#FBFAF5; --ink:#2B2926; --ink-soft:#6E685E; --card:#FFFFFF;
@@ -2844,6 +2848,17 @@ function pdfCenteredTextAt(pdfCtx, page, text, centerX, y, size, font){
   const w = f.widthOfTextAtSize(text, size);
   page.drawText(text, {x:centerX-w/2, y, size, font:f, color:pdfCtx.fg});
 }
+// Page headers now run big (to match the original pattern's own scale) but
+// some are long compound strings ("Custom Color Instructions — Right Back
+// Leg (cont.)") that won't all fit the same fixed size — shrink from
+// startSize down to minSize until it fits maxWidth, then draw centered.
+function pdfFittedHeader(pdfCtx, page, text, y, maxWidth, startSize, minSize, font, color){
+  const f = font || pdfCtx.fontBold;
+  let size = startSize;
+  while(size>minSize && f.widthOfTextAtSize(text, size) > maxWidth) size -= 2;
+  pdfCenteredText(pdfCtx, page, text, y, size, f, color);
+  return size;
+}
 async function pdfEmbedDataUrlPng(pdfCtx, dataUrl){
   return pdfCtx.pdfDoc.embedPng(dataUrlToUint8Array(dataUrl));
 }
@@ -2855,21 +2870,21 @@ async function addChartPage(pdfCtx, part, instance){
   const canvas = renderPartGridCanvas(part, instance, 14);
   const chartImg = await pdfEmbedDataUrlPng(pdfCtx, canvas.toDataURL("image/png"));
   const page = createStyledPdfPage(pdfCtx);
-  pdfCenteredText(pdfCtx, page, `Custom Color Map — ${label}`, pageH-margin-30, 32, pdfCtx.fontBold, pdfCtx.accent);
+  pdfFittedHeader(pdfCtx, page, `Custom Color Map — ${label}`, pageH-margin-52, pageW-margin*2, 64, 30, pdfCtx.fontBold, pdfCtx.accent);
 
-  let noteY = pageH-margin-74;
+  let noteY = pageH-margin-128;
   if(part!=="ear"){
     [ "Stitch 1 is the left edge of each chart row.",
       "The row wraps in a circle, so the left and right edges touch.",
       "The center of the row represents the front of this part where applicable." ]
-      .forEach(t=>{ pdfCenteredText(pdfCtx, page, t, noteY, 14, fontReg); noteY -= 19; });
-    noteY -= 6;
+      .forEach(t=>{ pdfCenteredText(pdfCtx, page, t, noteY, 26, fontReg); noteY -= 35; });
+    noteY -= 10;
   }
   if(part==="head" || part==="body"){
     const sampleLen = def.rows[Math.floor(def.rows.length/2)];
     const ori = orientationLabelsForRow(part, sampleLen);
-    pdfCenteredText(pdfCtx, page, `Approx. stitch ${ori.frontStitch} = front · stitch ${ori.backStitch} = back · stitches ${ori.sideBStitch}/${ori.sideAStitch} = sides (positions shift slightly per round)`, noteY, 12.5, fontReg);
-    noteY -= 22;
+    pdfCenteredText(pdfCtx, page, `Approx. stitch ${ori.frontStitch} = front · stitch ${ori.backStitch} = back · stitches ${ori.sideBStitch}/${ori.sideAStitch} = sides (positions shift slightly per round)`, noteY, 22, fontReg);
+    noteY -= 34;
   }
 
   const availW = pageW - margin*2;
@@ -2887,25 +2902,29 @@ async function addColorInstructionPages(pdfCtx, part, instance){
   const { pageW, pageH, margin, fontReg } = pdfCtx;
   const g = grids[gridKey(part, instance)];
   const availW = pageW - margin*2;
-  const lineSize = 15, lineGap = 19;
+  const lineSize = 29, lineGap = 39;
 
-  let page = createStyledPdfPage(pdfCtx);
-  pdfCenteredText(pdfCtx, page, `Custom Color Instructions — ${label}`, pageH-margin-30, 30, pdfCtx.fontBold, pdfCtx.accent);
-  let cursorY = pageH-margin-70;
+  function newInstructionPage(headerText){
+    const p = createStyledPdfPage(pdfCtx);
+    pdfFittedHeader(pdfCtx, p, headerText, pageH-margin-52, availW, 62, 28, pdfCtx.fontBold, pdfCtx.accent);
+    return p;
+  }
+
+  let page = newInstructionPage(`Custom Color Instructions — ${label}`);
+  let cursorY = pageH-margin-130;
   [ "Follow the original construction instructions for this part.",
     "The list below only tells you where to change yarn colors.",
     ORIGINAL_PATTERN_REFERENCES[part] ].filter(Boolean).forEach(t=>{
-    page.drawText(t, {x:margin, y:cursorY, size:14, font:fontReg, color:pdfCtx.fg});
-    cursorY -= 18;
+    page.drawText(t, {x:margin, y:cursorY, size:26, font:fontReg, color:pdfCtx.fg});
+    cursorY -= 35;
   });
-  cursorY -= 12;
+  cursorY -= 18;
 
   const bottomLimit = margin;
   function ensureRoom(neededLines){
-    if(cursorY - neededLines*lineGap < bottomLimit && cursorY < pageH-margin-140){
-      page = createStyledPdfPage(pdfCtx);
-      pdfCenteredText(pdfCtx, page, `${label} (cont.)`, pageH-margin-30, 26, pdfCtx.fontBold, pdfCtx.accent);
-      cursorY = pageH-margin-80;
+    if(cursorY - neededLines*lineGap < bottomLimit && cursorY < pageH-margin-260){
+      page = newInstructionPage(`${label} (cont.)`);
+      cursorY = pageH-margin-150;
     }
   }
   g.forEach((row,r)=>{
@@ -2915,14 +2934,13 @@ async function addColorInstructionPages(pdfCtx, part, instance){
     ensureRoom(wrapped.length);
     wrapped.forEach(line=>{
       if(cursorY < bottomLimit){
-        page = createStyledPdfPage(pdfCtx);
-        pdfCenteredText(pdfCtx, page, `${label} (cont.)`, pageH-margin-30, 26);
-        cursorY = pageH-margin-80;
+        page = newInstructionPage(`${label} (cont.)`);
+        cursorY = pageH-margin-150;
       }
       page.drawText(line, {x:margin, y:cursorY, size:lineSize, font:fontReg, color:pdfCtx.fg});
       cursorY -= lineGap;
     });
-    cursorY -= 8;
+    cursorY -= 14;
   });
 }
 
@@ -2942,10 +2960,10 @@ async function addFinishedPreviewPages(pdfCtx){
   // the guard below is just defensive.
   if(generatedCatPhoto && generatedCatPhoto.approved && generatedCatPhoto.dataUrl){
     const page = createStyledPdfPage(pdfCtx);
-    pdfCenteredText(pdfCtx, page, "Your Custom Cat — Finished Preview", pageH-margin-30, 32, pdfCtx.fontBold, pdfCtx.accent);
-    pdfCenteredText(pdfCtx, page, customer, pageH-margin-68, 17, fontReg);
+    pdfFittedHeader(pdfCtx, page, "Your Custom Cat — Finished Preview", pageH-margin-52, pageW-margin*2, 60, 32, pdfCtx.fontBold, pdfCtx.accent);
+    pdfCenteredText(pdfCtx, page, customer, pageH-margin-112, 32, fontReg);
     const img = await pdfEmbedDataUrlPng(pdfCtx, generatedCatPhoto.dataUrl);
-    const topY = pageH - margin - 100;
+    const topY = pageH - margin - 150;
     const availW = pageW - margin*2, maxH = topY - margin;
     let iw = availW, ih = iw*(img.height/img.width);
     if(ih > maxH){ ih = maxH; iw = ih*(img.width/img.height); }
@@ -2958,9 +2976,9 @@ async function addFinishedPreviewPages(pdfCtx){
   // useful for seeing exactly where each color sits on the assembled cat.
   const views = captureCrochetPreviewViews();
   const page2 = createStyledPdfPage(pdfCtx);
-  pdfCenteredText(pdfCtx, page2, "3D Construction Reference", pageH-margin-30, 28, pdfCtx.fontBold, pdfCtx.accent);
+  pdfFittedHeader(pdfCtx, page2, "3D Construction Reference", pageH-margin-52, pageW-margin*2, 56, 30, pdfCtx.fontBold, pdfCtx.accent);
   const cellW = (pageW - margin*2 - 30)/2, cellH = cellW;
-  const gridTop = pageH-margin-90;
+  const gridTop = pageH-margin-150;
   const cells = [
     { label:"Front", url:views.front, x:margin, y:gridTop-cellH },
     { label:"Back", url:views.back, x:margin+cellW+30, y:gridTop-cellH },
@@ -2971,31 +2989,35 @@ async function addFinishedPreviewPages(pdfCtx){
     if(!cell.url) continue;
     const img2 = await pdfEmbedDataUrlPng(pdfCtx, cell.url);
     page2.drawImage(img2, {x:cell.x, y:cell.y, width:cellW, height:cellH});
-    pdfCenteredTextAt(pdfCtx, page2, cell.label, cell.x+cellW/2, cell.y-24, 16);
+    pdfCenteredTextAt(pdfCtx, page2, cell.label, cell.x+cellW/2, cell.y-34, 26);
   }
   return page2;
 }
 
 async function addYarnListPage(pdfCtx){
-  const { pageW, pageH, margin, fontReg } = pdfCtx;
+  const { pageW, pageH, margin, fontReg, fontSemi } = pdfCtx;
   const page = createStyledPdfPage(pdfCtx);
-  pdfCenteredText(pdfCtx, page, "Yarn Colors for This Cat", pageH-margin-30, 32, pdfCtx.fontBold, pdfCtx.accent);
+  pdfFittedHeader(pdfCtx, page, "Yarn Colors for This Cat", pageH-margin-52, pageW-margin*2, 60, 32, pdfCtx.fontBold, pdfCtx.accent);
 
   const used = {};
   Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id) used[id]=(used[id]||0)+1; })));
-  let cursorY = pageH-margin-100;
-  const rowH = 50, swatchSize = 30;
+  let cursorY = pageH-margin-160;
+  const rowH = 100, swatchSize = 58;
   Object.keys(used).sort((a,b)=>used[b]-used[a]).forEach(id=>{
     const c = PALETTE.find(p=>p.id===id);
     if(!c || cursorY < margin+rowH) return;
     const [r,gg,b] = [1,3,5].map(i=>parseInt(c.hex.slice(i,i+2),16)/255);
-    page.drawRectangle({x:margin, y:cursorY-swatchSize+6, width:swatchSize, height:swatchSize, color:PDFLib.rgb(r,gg,b), borderColor:pdfCtx.fg, borderWidth:1});
+    page.drawRectangle({x:margin, y:cursorY-swatchSize+12, width:swatchSize, height:swatchSize, color:PDFLib.rgb(r,gg,b), borderColor:pdfCtx.fg, borderWidth:1.5});
     const stitchCount = used[id];
     // rough estimate only: ~1 inch of worsted-weight yarn per single crochet
     // stitch is a common rule of thumb, not a precise gauge calculation
     const approxYards = (stitchCount/36).toFixed(1);
-    const line = `${c.name} — ${c.brand} ${c.num}  ·  ~${stitchCount} stitches  ·  ~${approxYards} yds (approx.)`;
-    page.drawText(line, {x:margin+swatchSize+14, y:cursorY-14, size:16, font:fontReg, color:pdfCtx.fg});
+    const nameFont = fontSemi || fontReg;
+    const namePart = `${c.name}  `;
+    page.drawText(namePart, {x:margin+swatchSize+24, y:cursorY-10, size:30, font:nameFont, color:pdfCtx.accent});
+    const nameW = nameFont.widthOfTextAtSize(namePart, 30);
+    const restPart = `${c.brand} ${c.num}  ·  ~${stitchCount} stitches  ·  ~${approxYards} yds (approx.)`;
+    page.drawText(restPart, {x:margin+swatchSize+24+nameW, y:cursorY-10, size:24, font:fontReg, color:pdfCtx.fg});
     cursorY -= rowH;
   });
   return page;
@@ -3032,6 +3054,17 @@ const COVER_TITAN_PURPLE   = [0.478, 0.388, 0.584]; // sampled from the original
 async function fetchBundledCoverBadgeBytes(){
   const resp = await fetch("./cover-badge.png");
   if(!resp.ok) throw new Error("Couldn't load cover-badge.png (server said " + resp.status + "). Make sure cover-badge.png sits in the same folder as this page.");
+  return await resp.arrayBuffer();
+}
+
+// Static (non-variable) subsets of Baloo 2 / Quicksand, instantiated offline
+// with fonttools from Google's variable-font sources and trimmed to the
+// glyphs this app actually draws — see app/fonts/. Bundled locally (not
+// fetched from Google Fonts at runtime) since live WOFF2 fetching hit CORS
+// and font-parsing failures in testing.
+async function fetchBundledFontBytes(filename){
+  const resp = await fetch("./fonts/" + filename);
+  if(!resp.ok) throw new Error(`Couldn't load fonts/${filename} (server said ${resp.status}). Make sure the fonts/ folder sits next to this page.`);
   return await resp.arrayBuffer();
 }
 
@@ -3082,19 +3115,30 @@ async function personalizeCoverPage(pdfCtx, page){
    for why it's an overlay instead of a rebuild.
    ============================================================ */
 async function buildCustomerPatternPdf(sourcePdf, onProgress){
-  const { PDFDocument, StandardFonts, rgb } = PDFLib;
+  const { PDFDocument, rgb } = PDFLib;
   const outputPdf = await PDFDocument.create();
+  outputPdf.registerFontkit(window.fontkit);
   const srcPages = sourcePdf.getPages();
   let pageW = 1500, pageH = 2250; // matches Annie's real pattern's own page size
   if(srcPages.length){ const size = srcPages[0].getSize(); pageW = size.width; pageH = size.height; }
 
+  if(onProgress) onProgress("Loading pattern fonts…");
+  const [balooBoldBytes, quicksandMedBytes, quicksandSemiBytes] = await Promise.all([
+    fetchBundledFontBytes("Baloo2-Bold.ttf"),
+    fetchBundledFontBytes("Quicksand-Medium.ttf"),
+    fetchBundledFontBytes("Quicksand-SemiBold.ttf"),
+  ]);
   const pdfCtx = {
     pdfDoc: outputPdf, pageW, pageH, margin: pageW*0.06,
     bg: rgb(0.996,0.996,0.996),  // near-white, matches the pattern's own page background
     fg: rgb(0.2,0.18,0.22),      // near-black, matches the pattern's own body text (~#302D34)
     accent: rgb(0.478,0.388,0.584), // purple, matches the pattern's own headings/accents (~#7A6395)
-    fontBold: await outputPdf.embedFont(StandardFonts.HelveticaBold),
-    fontReg: await outputPdf.embedFont(StandardFonts.Helvetica),
+    // subset:false — pdf-lib's own dynamic re-subsetting choked on these
+    // already-hand-subsetted files (zlib/format errors in some PDF readers);
+    // embedding them whole sidesteps that and they're tiny (~25-32KB) anyway.
+    fontBold: await outputPdf.embedFont(balooBoldBytes, {subset:false}),   // Baloo 2 Bold — matches the pattern's own headers
+    fontReg: await outputPdf.embedFont(quicksandMedBytes, {subset:false}), // Quicksand Medium — matches the pattern's own body text
+    fontSemi: await outputPdf.embedFont(quicksandSemiBytes, {subset:false}), // Quicksand SemiBold — for emphasis (yarn list names)
   };
 
   const sourcePageCount = sourcePdf.getPageCount();
