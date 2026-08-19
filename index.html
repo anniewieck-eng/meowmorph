@@ -347,9 +347,9 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
     </div>
 
     <div class="row" style="margin-top:14px;">
-      <button id="btnGenerateCatPhoto">Generate Finished Crochet Cat Photo</button>
-      <button id="btnRegenerateCatPhoto" class="secondary" disabled>Regenerate</button>
-      <button id="btnApproveCatPhoto" class="secondary" disabled>Approve Photo</button>
+      <button id="btnGenerateCatPhoto">Generate Finished Crochet Cat Photos (4 Angles)</button>
+      <button id="btnRegenerateCatPhoto" class="secondary" disabled>Regenerate All 4</button>
+      <button id="btnApproveCatPhoto" class="secondary" disabled>Approve Set</button>
       <span class="hint" id="catPhotoApprovedBadge" style="display:none;color:var(--ok, #4a7c4a);font-weight:600;">✓ Approved</span>
     </div>
     <div class="customer-field" style="margin-top:10px;">
@@ -359,14 +359,31 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
     <div class="hint" id="catPhotoValidation" style="margin-top:10px;"></div>
     <div class="hint" id="catPhotoStatus" style="margin-top:4px;"></div>
 
-    <div id="catPhotoPreviewWrap" style="display:none;margin-top:14px;max-width:420px;">
-      <img id="catPhotoPreviewImg" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+    <div id="catPhotoPreviewWrap" style="display:none;margin-top:14px;">
+      <div class="row" style="gap:14px;flex-wrap:wrap;">
+        <div class="upload-slot" style="max-width:200px;">
+          <div class="lbl">Front</div>
+          <img id="catPhotoPreviewImg-front" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+        </div>
+        <div class="upload-slot" style="max-width:200px;">
+          <div class="lbl">Back</div>
+          <img id="catPhotoPreviewImg-back" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+        </div>
+        <div class="upload-slot" style="max-width:200px;">
+          <div class="lbl">Left</div>
+          <img id="catPhotoPreviewImg-left" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+        </div>
+        <div class="upload-slot" style="max-width:200px;">
+          <div class="lbl">Right</div>
+          <img id="catPhotoPreviewImg-right" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+        </div>
+      </div>
     </div>
   </div>
 
   <div class="card">
     <h2>Create Customer Pattern PDF</h2>
-    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also swaps the cover page's cat photo and name for the approved generated photo and customer name above (keeping the rest of the cover design as-is), and adds a crochet-style finished-cat preview and yarn list near the end. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code> and <code>cover-badge.png</code>, sitting in the same folder) — nothing to upload.</div>
+    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also swaps the cover page's cat photo and name for the approved generated front photo and customer name above (keeping the rest of the cover design as-is), adds this cat's colors to the Materials page, and adds the finished-cat preview (all 4 angles) and yarn list near the end. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code> and <code>cover-badge.png</code>, sitting in the same folder) — nothing to upload.</div>
     <div class="row" style="margin-top:10px;">
       <label style="display:flex;align-items:center;gap:6px;font-family:system-ui,sans-serif;font-size:13px;">Preview quality
         <select id="previewQuality">
@@ -450,7 +467,8 @@ let undoStack = [];
 let redoStack = [];
 let strokeChanges = null; // active stroke batch
 let grayCatRef = null;        // {dataUrl} - the uploaded gray finished crochet-cat construction reference
-let generatedCatPhoto = null; // {dataUrl, approved, promptUsed} - the OpenAI-generated finished-cat photo, if any
+const CAT_PHOTO_ANGLES = ["front","back","left","right"];
+let generatedCatPhoto = null; // {angles:{front,back,left,right}, approved, promptUsed} - the OpenAI-generated finished-cat photo set, if any
 
 function gridKey(part, inst){ return part + "#" + inst; }
 
@@ -2397,8 +2415,21 @@ function captureCanonical3DViews(){
 // mirroring, no invented markings, gray-photo-is-construction-only, etc.)
 // so they travel with the request itself rather than living only in this
 // file's comments.
-function buildOpenAIImagePrompt(feedback){
+// Per-angle camera framing instruction — buildOpenAIImagePrompt() generates
+// one separate OpenAI call per angle (see generateCrochetCatPhotoSet), so
+// each call needs to be told which of the four 3D reference views' camera
+// position to replicate instead of always defaulting to the front.
+const CAT_PHOTO_ANGLE_INSTRUCTIONS = {
+  front: `Frame this photo as a FRONT view: the camera positioned directly in front of the cat, facing it head-on, matching the camera angle shown in the "front" 3D render reference.`,
+  back:  `Frame this photo as a BACK view: the camera positioned directly behind the cat, showing the back of its head, back, and tail — matching the camera angle shown in the "back" 3D render reference, not the front.`,
+  left:  `Frame this photo as a LEFT three-quarter view: the camera positioned to the cat's left side, matching the camera angle shown in the "left" 3D render reference, not the front.`,
+  right: `Frame this photo as a RIGHT three-quarter view: the camera positioned to the cat's right side, matching the camera angle shown in the "right" 3D render reference, not the front.`,
+};
+function buildOpenAIImagePrompt(feedback, angle){
+  const angleInstruction = CAT_PHOTO_ANGLE_INSTRUCTIONS[angle] || CAT_PHOTO_ANGLE_INSTRUCTIONS.front;
   const base = `Create one photorealistic studio product photograph of a single finished handmade crocheted cat, seated upright, fully visible, on a clean, softly lit studio background with a warm neutral backdrop and a soft shadow beneath it.
+
+${angleInstruction} This is one of four separate photos (front, back, left, right) of the exact same finished cat — every coat color, marking, and construction detail must stay identical across all four; only the camera framing changes for this one.
 
 You are given up to six reference images, in this order of authority — if any two references seem to disagree, resolve it using this priority order:
 1. Four 3D render views, labeled front/left/right/back — the ground truth for this specific cat's finished appearance. These are a 3D-rendered wrap of this cat's actual approved colors around the assembled body, so they already show exactly where every color and marking sits once wrapped around the three-dimensional shape, at what size, and with what boundary shape — not an approximation. They are also the ground truth for body proportions, silhouette, and pose. Reproduce the marking layout shown in these four views as exactly as possible: same boundary shapes, same size and position on each body part, same left/right sides — do not simplify, smooth over, shrink, enlarge, shift, or reinterpret any marking by eye.
@@ -2448,7 +2479,7 @@ function feedbackMentionsUnknownColor(feedback){
 
 // Checks everything the brief requires before spending an API call.
 // Returns the freshly rendered overview/views alongside blockers/warnings
-// so generateCrochetCatPhoto() doesn't have to render them twice.
+// so generateCrochetCatPhotoSet() doesn't have to render them twice.
 function validateImageGenerationInputs(){
   const blockers = [], warnings = [];
 
@@ -2504,10 +2535,12 @@ async function callOpenAIImageAPI(promptText, referenceDataUrls){
   return "data:image/png;base64," + item.b64_json;
 }
 
-function displayGeneratedCrochetPhoto(dataUrl){
+function displayGeneratedCrochetPhotoSet(angles){
   const wrap = document.getElementById("catPhotoPreviewWrap");
-  const img = document.getElementById("catPhotoPreviewImg");
-  img.src = dataUrl;
+  CAT_PHOTO_ANGLES.forEach(angle=>{
+    const img = document.getElementById("catPhotoPreviewImg-"+angle);
+    if(img && angles[angle]) img.src = angles[angle];
+  });
   wrap.style.display = "block";
   document.getElementById("btnRegenerateCatPhoto").disabled = false;
   document.getElementById("btnApproveCatPhoto").disabled = false;
@@ -2515,15 +2548,15 @@ function displayGeneratedCrochetPhoto(dataUrl){
 }
 
 function approveGeneratedCrochetPhoto(){
-  if(!generatedCatPhoto || !generatedCatPhoto.dataUrl) return;
+  if(!generatedCatPhoto || !generatedCatPhoto.angles || !generatedCatPhoto.angles.front) return;
   generatedCatPhoto.approved = true;
   document.getElementById("catPhotoApprovedBadge").style.display = "inline";
   const status = document.getElementById("catPhotoStatus");
-  status.textContent = "Approved — this photo will be included in the final customer PDF.";
+  status.textContent = "Approved — this set of 4 photos will be included in the final customer PDF.";
   status.className = "hint badge-ok";
 }
 
-async function generateCrochetCatPhoto(feedbackText){
+async function generateCrochetCatPhotoSet(feedbackText){
   const status = document.getElementById("catPhotoStatus");
   const validationDiv = document.getElementById("catPhotoValidation");
   const genBtn = document.getElementById("btnGenerateCatPhoto");
@@ -2544,21 +2577,35 @@ async function generateCrochetCatPhoto(feedbackText){
 
   genBtn.disabled = true; regenBtn.disabled = true;
   document.getElementById("btnApproveCatPhoto").disabled = true;
-  status.textContent = "Building reference images…";
+  status.textContent = "Calling OpenAI for 4 angles — front, back, left, right (a high-quality set can take a few minutes)…";
   status.className = "hint";
 
+  // Same reference set for every angle: the 3D views/overview/gray photo
+  // already show all four angles' ground truth, so only the prompt's
+  // requested camera framing changes per call (see buildOpenAIImagePrompt).
+  // Order matches the source-priority list in the prompt itself: 3D views
+  // (exact marking placement/shape/pose truth) -> stitch map overview
+  // (color truth) -> gray reference (construction only). No customer
+  // photo is ever in this list.
+  const referenceImages = [views.front, views.left, views.right, views.back, overview, grayCatRef.dataUrl];
+
   try{
-    const promptText = buildOpenAIImagePrompt(feedbackText);
-    // Order matches the source-priority list in the prompt itself: 3D views
-    // (exact marking placement/shape/pose truth) -> stitch map overview
-    // (color truth) -> gray reference (construction only). No customer
-    // photo is ever in this list.
-    const referenceImages = [views.front, views.left, views.right, views.back, overview, grayCatRef.dataUrl];
-    status.textContent = "Calling OpenAI (a high-quality image can take 30–90 seconds)…";
-    const resultDataUrl = await callOpenAIImageAPI(promptText, referenceImages);
-    generatedCatPhoto = { dataUrl: resultDataUrl, approved:false, promptUsed:promptText };
-    displayGeneratedCrochetPhoto(resultDataUrl);
-    status.textContent = "Done. Review the photo below, then Approve it or adjust the feedback box and Regenerate.";
+    // Runs all 4 angle calls in parallel to cut wall-clock wait time — this
+    // costs the same 4 OpenAI generations either way, parallel just avoids
+    // making the pattern-maker sit through them one at a time. If any single
+    // angle fails, Promise.all rejects and the whole set must be retried
+    // (matches the "one Approve step for the whole set" flow) — the other
+    // angles' successful (and billed) results are simply discarded.
+    const results = await Promise.all(CAT_PHOTO_ANGLES.map(async angle=>{
+      const promptText = buildOpenAIImagePrompt(feedbackText, angle);
+      const dataUrl = await callOpenAIImageAPI(promptText, referenceImages);
+      return [angle, dataUrl];
+    }));
+    const angles = {};
+    results.forEach(([angle, dataUrl])=>{ angles[angle] = dataUrl; });
+    generatedCatPhoto = { angles, approved:false, promptUsed:buildOpenAIImagePrompt(feedbackText, "front") };
+    displayGeneratedCrochetPhotoSet(angles);
+    status.textContent = "Done. Review all 4 angles below, then Approve the set or adjust the feedback box and Regenerate.";
     status.className = "hint badge-ok";
   }catch(err){
     status.textContent = "Request failed: " + err.message;
@@ -2569,10 +2616,10 @@ async function generateCrochetCatPhoto(feedbackText){
 }
 
 document.getElementById("btnGenerateCatPhoto").addEventListener("click", ()=>{
-  generateCrochetCatPhoto(document.getElementById("catPhotoFeedback").value);
+  generateCrochetCatPhotoSet(document.getElementById("catPhotoFeedback").value);
 });
 document.getElementById("btnRegenerateCatPhoto").addEventListener("click", ()=>{
-  generateCrochetCatPhoto(document.getElementById("catPhotoFeedback").value);
+  generateCrochetCatPhotoSet(document.getElementById("catPhotoFeedback").value);
 });
 document.getElementById("btnApproveCatPhoto").addEventListener("click", approveGeneratedCrochetPhoto);
 
@@ -2796,8 +2843,9 @@ function validateBeforeExport(){
     blockers.push("\"Use a different base PDF\" is checked, but no file was chosen.");
   }
 
-  if(!generatedCatPhoto || !generatedCatPhoto.approved || !generatedCatPhoto.dataUrl){
-    blockers.push("Generate and Approve a finished crochet cat photo above (\"Generate Finished Crochet Cat Photo\") before exporting the final PDF — it's missing.");
+  const hasAllAngles = generatedCatPhoto && generatedCatPhoto.angles && CAT_PHOTO_ANGLES.every(a=>generatedCatPhoto.angles[a]);
+  if(!hasAllAngles || !generatedCatPhoto.approved){
+    blockers.push("Generate and Approve the finished crochet cat photo set (all 4 angles) above (\"Generate Finished Crochet Cat Photos (4 Angles)\") before exporting the final PDF — it's missing.");
   }
 
   PART_ORDER.forEach(part=>{
@@ -2955,16 +3003,17 @@ async function addFinishedPreviewPages(pdfCtx){
   const { pageW, pageH, margin, fontReg } = pdfCtx;
   const customer = document.getElementById("customerName").value || "(unnamed)";
 
-  // Hero page: the customer-approved, OpenAI-generated photo — the actual
-  // "what your finished cat will look like" deliverable. buildCustomerPatternPdf()
-  // is only ever reached once validateBeforeExport() has confirmed an
-  // approved photo exists, so generatedCatPhoto is expected to be set here;
-  // the guard below is just defensive.
-  if(generatedCatPhoto && generatedCatPhoto.approved && generatedCatPhoto.dataUrl){
+  // Hero page: the customer-approved, OpenAI-generated front photo — the
+  // actual "what your finished cat will look like" deliverable.
+  // buildCustomerPatternPdf() is only ever reached once validateBeforeExport()
+  // has confirmed an approved photo set exists, so generatedCatPhoto is
+  // expected to be set here; the guard below is just defensive.
+  const angles = generatedCatPhoto && generatedCatPhoto.angles;
+  if(generatedCatPhoto && generatedCatPhoto.approved && angles && angles.front){
     const page = createStyledPdfPage(pdfCtx);
     pdfFittedHeader(pdfCtx, page, "Your Custom Cat — Finished Preview", pageH-margin-52, pageW-margin*2, 60, 32, pdfCtx.fontBold, pdfCtx.accent);
     pdfCenteredText(pdfCtx, page, customer, pageH-margin-112, 32, fontReg);
-    const img = await pdfEmbedDataUrlPng(pdfCtx, generatedCatPhoto.dataUrl);
+    const img = await pdfEmbedDataUrlPng(pdfCtx, angles.front);
     const topY = pageH - margin - 150;
     const availW = pageW - margin*2, maxH = topY - margin;
     let iw = availW, ih = iw*(img.height/img.width);
@@ -2973,27 +3022,32 @@ async function addFinishedPreviewPages(pdfCtx){
     page.drawImage(img, {x:imgX, y:imgY, width:iw, height:ih});
   }
 
-  // Second page: the four fixed-camera 3D construction views. Kept as a
-  // technical reference alongside the photorealistic hero image above —
-  // useful for seeing exactly where each color sits on the assembled cat.
-  const views = captureCrochetPreviewViews();
-  const page2 = createStyledPdfPage(pdfCtx);
-  pdfFittedHeader(pdfCtx, page2, "3D Construction Reference", pageH-margin-52, pageW-margin*2, 56, 30, pdfCtx.fontBold, pdfCtx.accent);
-  const cellW = (pageW - margin*2 - 30)/2, cellH = cellW;
-  const gridTop = pageH-margin-150;
-  const cells = [
-    { label:"Front", url:views.front, x:margin, y:gridTop-cellH },
-    { label:"Back", url:views.back, x:margin+cellW+30, y:gridTop-cellH },
-    { label:"Left (Three-Quarter)", url:views.left, x:margin, y:gridTop-cellH*2-40 },
-    { label:"Right (Three-Quarter)", url:views.right, x:margin+cellW+30, y:gridTop-cellH*2-40 },
-  ];
-  for(const cell of cells){
-    if(!cell.url) continue;
-    const img2 = await pdfEmbedDataUrlPng(pdfCtx, cell.url);
-    page2.drawImage(img2, {x:cell.x, y:cell.y, width:cellW, height:cellH});
-    pdfCenteredTextAt(pdfCtx, page2, cell.label, cell.x+cellW/2, cell.y-34, 26);
+  // Second (last) page: the same OpenAI-generated cat, photographed from
+  // all four angles (front/back/left/right) — replaces the old flat-colored
+  // schematic 3D-render grid so the customer sees the actual photorealistic
+  // result from every side, not the construction model.
+  if(angles){
+    const page2 = createStyledPdfPage(pdfCtx);
+    pdfFittedHeader(pdfCtx, page2, "Your Custom Cat — All Angles", pageH-margin-52, pageW-margin*2, 56, 30, pdfCtx.fontBold, pdfCtx.accent);
+    const cellW = (pageW - margin*2 - 30)/2, cellH = cellW*1.35; // portrait cells to fit the photos' own 1024x1536 aspect without cropping
+    const gridTop = pageH-margin-150;
+    const cells = [
+      { label:"Front", url:angles.front, x:margin, y:gridTop-cellH },
+      { label:"Back", url:angles.back, x:margin+cellW+30, y:gridTop-cellH },
+      { label:"Left", url:angles.left, x:margin, y:gridTop-cellH*2-40 },
+      { label:"Right", url:angles.right, x:margin+cellW+30, y:gridTop-cellH*2-40 },
+    ];
+    for(const cell of cells){
+      if(!cell.url) continue;
+      const img2 = await pdfEmbedDataUrlPng(pdfCtx, cell.url);
+      let iw = cellW, ih = iw*(img2.height/img2.width);
+      if(ih > cellH){ ih = cellH; iw = ih*(img2.width/img2.height); }
+      const ix = cell.x + (cellW-iw)/2, iy = cell.y + (cellH-ih)/2;
+      page2.drawImage(img2, {x:ix, y:iy, width:iw, height:ih});
+      pdfCenteredTextAt(pdfCtx, page2, cell.label, cell.x+cellW/2, cell.y-34, 26);
+    }
+    return page2;
   }
-  return page2;
 }
 
 async function addYarnListPage(pdfCtx){
@@ -3023,6 +3077,51 @@ async function addYarnListPage(pdfCtx){
     cursorY -= rowH;
   });
   return page;
+}
+
+/* ============================================================
+   MATERIALS PAGE COLOR SUMMARY — page 2 overlay, same "draw on top of the
+   flattened original page" approach as personalizeCoverPage() below. Page
+   2 of the bundled base-pattern.pdf (the "Welcome" page) has open space
+   below its generic "Materials:" line — this draws a quick per-cat color
+   reference into that space. The full list with brand/yardage still lives
+   on its own page near the end (addYarnListPage) — this is just a
+   glanceable summary in the same spot a customer already reads for
+   supplies. The topY/bottomSafe bounds below were measured directly off
+   a render of base-pattern.pdf's page 2 (page is 1500×2250pt, same as the
+   cover bboxes further down) — if that page's layout is ever redesigned,
+   these will need remeasuring.
+   ============================================================ */
+async function addColorsUsedToMaterialsPage(pdfCtx, page){
+  const { pageW, margin, fontBold, fontSemi, fontReg, fg, accent } = pdfCtx;
+  const used = {};
+  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id) used[id]=(used[id]||0)+1; })));
+  const ids = Object.keys(used).sort((a,b)=>used[b]-used[a]);
+  if(!ids.length) return;
+
+  const topY = 460, bottomSafe = 90;
+  page.drawLine({ start:{x:margin, y:topY}, end:{x:pageW-margin, y:topY}, thickness:1.5, color:PDFLib.rgb(0.71,0.64,0.86) });
+
+  const headingY = topY - 45;
+  pdfCenteredText(pdfCtx, page, "Colors Used for This Cat", headingY, 30, fontBold, accent);
+
+  const rowH = 46, swatchSize = 30;
+  let cursorY = headingY - 55;
+  for(const id of ids){
+    const c = PALETTE.find(p=>p.id===id);
+    if(!c || cursorY-swatchSize < bottomSafe) break; // ran out of the page's open space — full list is still on the yarn list page
+    const [r,g,b] = [1,3,5].map(i=>parseInt(c.hex.slice(i,i+2),16)/255);
+    const swatchX = margin + 40;
+    page.drawRectangle({x:swatchX, y:cursorY-swatchSize, width:swatchSize, height:swatchSize, color:PDFLib.rgb(r,g,b), borderColor:fg, borderWidth:1.2});
+    const nameFont = fontSemi || fontReg;
+    const namePart = `${c.name}  `;
+    const textX = swatchX + swatchSize + 20;
+    const textY = cursorY - swatchSize/2 - 6;
+    page.drawText(namePart, {x:textX, y:textY, size:18, font:nameFont, color:accent});
+    const nameW = nameFont.widthOfTextAtSize(namePart, 18);
+    page.drawText(`${c.brand} ${c.num}`, {x:textX+nameW, y:textY, size:14, font:fontReg, color:fg});
+    cursorY -= rowH;
+  }
 }
 
 /* ============================================================
@@ -3078,8 +3177,8 @@ async function personalizeCoverPage(pdfCtx, page){
   // 1. Photo — neutral backdrop (in case the generated photo's aspect
   // ratio doesn't exactly match the card) then the approved photo itself.
   page.drawRectangle({x:COVER_PHOTO_BBOX.x, y:COVER_PHOTO_BBOX.y, width:COVER_PHOTO_BBOX.w, height:COVER_PHOTO_BBOX.h, color: rgb(...COVER_PHOTO_BACKDROP)});
-  if(generatedCatPhoto && generatedCatPhoto.dataUrl){
-    const img = await pdfEmbedDataUrlPng(pdfCtx, generatedCatPhoto.dataUrl);
+  if(generatedCatPhoto && generatedCatPhoto.angles && generatedCatPhoto.angles.front){
+    const img = await pdfEmbedDataUrlPng(pdfCtx, generatedCatPhoto.angles.front);
     let iw = COVER_PHOTO_BBOX.w, ih = iw*(img.height/img.width);
     if(ih > COVER_PHOTO_BBOX.h){ ih = COVER_PHOTO_BBOX.h; iw = ih*(img.width/img.height); }
     const ix = COVER_PHOTO_BBOX.x + (COVER_PHOTO_BBOX.w-iw)/2;
@@ -3153,6 +3252,10 @@ async function buildCustomerPatternPdf(sourcePdf, onProgress){
       if(onProgress) onProgress("Personalizing cover page…");
       await personalizeCoverPage(pdfCtx, addedPage);
     }
+    if(humanPageNumber===2){
+      if(onProgress) onProgress("Adding this cat's colors to the Materials page…");
+      await addColorsUsedToMaterialsPage(pdfCtx, addedPage);
+    }
 
     if(humanPageNumber===7){ await addPartPages(pdfCtx,"frontLegs",0); await addPartPages(pdfCtx,"frontLegs",1); }
     if(humanPageNumber===10){ await addPartPages(pdfCtx,"backLegs",0); await addPartPages(pdfCtx,"backLegs",1); }
@@ -3161,7 +3264,7 @@ async function buildCustomerPatternPdf(sourcePdf, onProgress){
     if(humanPageNumber===18){ await addPartPages(pdfCtx,"head",0); }
     if(humanPageNumber===26){ await addPartPages(pdfCtx,"body",0); }
     if(humanPageNumber===43){
-      if(onProgress) onProgress("Rendering finished-cat preview (4 views)…");
+      if(onProgress) onProgress("Adding finished-cat preview (4 angles)…");
       await addFinishedPreviewPages(pdfCtx);
       await addYarnListPage(pdfCtx);
     }
