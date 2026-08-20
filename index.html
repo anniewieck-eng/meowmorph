@@ -2013,7 +2013,7 @@ function render3d(){
   ctx.ellipse(groundP.x, groundP.y, shadowR, shadowR*0.38, 0, 0, Math.PI*2);
   ctx.fill();
 
-  const texture = PREVIEW_QUALITY!=="draft";
+  const texture = false; // flat colors — stitch texture disabled per Annie's request (2026-08-20)
   const highDetail = PREVIEW_QUALITY==="high";
   for(let k=0;k<order.length;k++){
     const q=order[k];
