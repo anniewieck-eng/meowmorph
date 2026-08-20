@@ -387,7 +387,7 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
 
   <div class="card">
     <h2>Create Customer Pattern PDF</h2>
-    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also swaps the cover page's cat photo and name for the approved generated front photo and customer name above (keeping the rest of the cover design as-is), then adds the finished-cat preview (all 4 angles) right after the cover, adds this cat's colors to the Materials page, and adds the yarn list right after that. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code> and <code>cover-badge.png</code>, sitting in the same folder) — nothing to upload.</div>
+    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also swaps the cover page's cat photo and name for the approved generated front photo and customer name above (keeping the rest of the cover design as-is), then adds the finished-cat preview (all 4 angles) right after the cover, and adds the yarn colors page right after the Materials page. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code> and <code>cover-badge.png</code>, sitting in the same folder) — nothing to upload.</div>
     <div class="row" style="margin-top:10px;">
       <label style="display:flex;align-items:center;gap:6px;font-family:system-ui,sans-serif;font-size:13px;">Preview quality
         <select id="previewQuality">
@@ -3165,52 +3165,6 @@ async function addYarnListPage(pdfCtx){
 }
 
 /* ============================================================
-   MATERIALS PAGE COLOR SUMMARY — page 2 overlay, same "draw on top of the
-   flattened original page" approach as personalizeCoverPage() below. Page
-   2 of the bundled base-pattern.pdf (the "Welcome" page) has open space
-   below its generic "Materials:" line — this draws a quick per-cat color
-   reference into that space. The full list with brand/yardage still lives
-   on its own page immediately after this one (addYarnListPage, spliced in
-   right behind the Materials page) — this is just a glanceable summary in
-   the same spot a customer already reads for
-   supplies. The topY/bottomSafe bounds below were measured directly off
-   a render of base-pattern.pdf's page 2 (page is 1500×2250pt, same as the
-   cover bboxes further down) — if that page's layout is ever redesigned,
-   these will need remeasuring.
-   ============================================================ */
-async function addColorsUsedToMaterialsPage(pdfCtx, page){
-  const { pageW, margin, fontBold, fontSemi, fontReg, fg, accent } = pdfCtx;
-  const used = {};
-  Object.values(grids).forEach(g=>g.forEach(row=>row.forEach(id=>{ if(id) used[id]=(used[id]||0)+1; })));
-  const ids = Object.keys(used).sort((a,b)=>used[b]-used[a]);
-  if(!ids.length) return;
-
-  const topY = 460, bottomSafe = 90;
-  page.drawLine({ start:{x:margin, y:topY}, end:{x:pageW-margin, y:topY}, thickness:1.5, color:PDFLib.rgb(0.71,0.64,0.86) });
-
-  const headingY = topY - 45;
-  pdfCenteredText(pdfCtx, page, "Colors Used for This Cat", headingY, 30, fontBold, accent);
-
-  const rowH = 46, swatchSize = 30;
-  let cursorY = headingY - 55;
-  for(const id of ids){
-    const c = PALETTE.find(p=>p.id===id);
-    if(!c || cursorY-swatchSize < bottomSafe) break; // ran out of the page's open space — full list is still on the yarn list page
-    const [r,g,b] = [1,3,5].map(i=>parseInt(c.hex.slice(i,i+2),16)/255);
-    const swatchX = margin + 40;
-    page.drawRectangle({x:swatchX, y:cursorY-swatchSize, width:swatchSize, height:swatchSize, color:PDFLib.rgb(r,g,b), borderColor:fg, borderWidth:1.2});
-    const nameFont = fontSemi || fontReg;
-    const namePart = `${c.name}  `;
-    const textX = swatchX + swatchSize + 20;
-    const textY = cursorY - swatchSize/2 - 6;
-    page.drawText(namePart, {x:textX, y:textY, size:18, font:nameFont, color:accent});
-    const nameW = nameFont.widthOfTextAtSize(namePart, 18);
-    page.drawText(`${c.brand} ${c.num}`, {x:textX+nameW, y:textY, size:14, font:fontReg, color:fg});
-    cursorY -= rowH;
-  }
-}
-
-/* ============================================================
    COVER PAGE — personalize in place rather than rebuild.
    The bundled base-pattern.pdf's page 1 is a single flattened design
    (one big background image, no separate text/photo objects to swap),
@@ -3341,8 +3295,6 @@ async function buildCustomerPatternPdf(sourcePdf, onProgress){
       await addFinishedPreviewPages(pdfCtx);
     }
     if(humanPageNumber===2){
-      if(onProgress) onProgress("Adding this cat's colors to the Materials page…");
-      await addColorsUsedToMaterialsPage(pdfCtx, addedPage);
       if(onProgress) onProgress("Adding yarn colors page…");
       await addYarnListPage(pdfCtx);
     }
