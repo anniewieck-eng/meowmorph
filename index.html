@@ -353,7 +353,7 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
       <span class="hint" id="catPhotoApprovedBadge" style="display:none;color:var(--ok, #4a7c4a);font-weight:600;">✓ Approved</span>
     </div>
     <div class="customer-field" style="margin-top:10px;">
-      <label>Feedback for Regenerate (optional) — e.g. "make the chest patch narrower," "the left front paw should be cream," "keep the same markings but make the crochet stitches more visible"</label>
+      <label>Feedback for Regenerate (optional) — e.g. "make the chest patch narrower," "the left front paw should be cream," "keep the same markings but make the crochet stitches more visible". Applies whether you click "Regenerate All 4" or one of the per-angle "Regenerate [Angle]" buttons below each photo — use the per-angle buttons when only one view came out wrong.</label>
       <input type="text" id="catPhotoFeedback" placeholder="What should change? Leave blank to just try again with the same instructions.">
     </div>
     <div class="hint" id="catPhotoValidation" style="margin-top:10px;"></div>
@@ -364,18 +364,22 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
         <div class="upload-slot" style="max-width:200px;">
           <div class="lbl">Front</div>
           <img id="catPhotoPreviewImg-front" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+          <button type="button" class="secondary" id="btnRegenerateAngle-front" style="margin-top:6px;width:100%;" disabled>Regenerate Front</button>
         </div>
         <div class="upload-slot" style="max-width:200px;">
           <div class="lbl">Back</div>
           <img id="catPhotoPreviewImg-back" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+          <button type="button" class="secondary" id="btnRegenerateAngle-back" style="margin-top:6px;width:100%;" disabled>Regenerate Back</button>
         </div>
         <div class="upload-slot" style="max-width:200px;">
           <div class="lbl">Left</div>
           <img id="catPhotoPreviewImg-left" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+          <button type="button" class="secondary" id="btnRegenerateAngle-left" style="margin-top:6px;width:100%;" disabled>Regenerate Left</button>
         </div>
         <div class="upload-slot" style="max-width:200px;">
           <div class="lbl">Right</div>
           <img id="catPhotoPreviewImg-right" style="width:100%;border-radius:8px;border:1px solid var(--card-edge);display:block;">
+          <button type="button" class="secondary" id="btnRegenerateAngle-right" style="margin-top:6px;width:100%;" disabled>Regenerate Right</button>
         </div>
       </div>
     </div>
@@ -383,7 +387,7 @@ th{color:var(--ink-soft);font-size:11px;text-transform:uppercase;letter-spacing:
 
   <div class="card">
     <h2>Create Customer Pattern PDF</h2>
-    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also swaps the cover page's cat photo and name for the approved generated front photo and customer name above (keeping the rest of the cover design as-is), adds this cat's colors to the Materials page, and adds the finished-cat preview (all 4 angles) and yarn list near the end. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code> and <code>cover-badge.png</code>, sitting in the same folder) — nothing to upload.</div>
+    <div class="hint">This creates a customer-ready PDF by placing each custom stitch map and its color instructions beside the matching section of the original base pattern. It also swaps the cover page's cat photo and name for the approved generated front photo and customer name above (keeping the rest of the cover design as-is), then adds the finished-cat preview (all 4 angles) right after the cover, adds this cat's colors to the Materials page, and adds the yarn list right after that. The base pattern itself is bundled with this site (<code>base-pattern.pdf</code> and <code>cover-badge.png</code>, sitting in the same folder) — nothing to upload.</div>
     <div class="row" style="margin-top:10px;">
       <label style="display:flex;align-items:center;gap:6px;font-family:system-ui,sans-serif;font-size:13px;">Preview quality
         <select id="previewQuality">
@@ -468,6 +472,7 @@ let redoStack = [];
 let strokeChanges = null; // active stroke batch
 let grayCatRef = null;        // {dataUrl} - the uploaded gray finished crochet-cat construction reference
 const CAT_PHOTO_ANGLES = ["front","back","left","right"];
+const CAT_PHOTO_ANGLE_LABELS = {front:"Front", back:"Back", left:"Left", right:"Right"};
 let generatedCatPhoto = null; // {angles:{front,back,left,right}, approved, promptUsed} - the OpenAI-generated finished-cat photo set, if any
 
 function gridKey(part, inst){ return part + "#" + inst; }
@@ -2432,17 +2437,18 @@ function buildOpenAIImagePrompt(feedback, angle){
 ${angleInstruction} This is one of four separate photos (front, back, left, right) of the exact same finished cat — every coat color, marking, and construction detail must stay identical across all four; only the camera framing changes for this one.
 
 You are given up to six reference images, in this order of authority — if any two references seem to disagree, resolve it using this priority order:
-1. Four 3D render views, labeled front/left/right/back — the ground truth for this specific cat's finished appearance. These are a 3D-rendered wrap of this cat's actual approved colors around the assembled body, so they already show exactly where every color and marking sits once wrapped around the three-dimensional shape, at what size, and with what boundary shape — not an approximation. They are also the ground truth for body proportions, silhouette, and pose. Reproduce the marking layout shown in these four views as exactly as possible: same boundary shapes, same size and position on each body part, same left/right sides — do not simplify, smooth over, shrink, enlarge, shift, or reinterpret any marking by eye.
+1. Four 3D render views, labeled front/left/right/back — the ground truth for this specific cat's COLORS AND MARKINGS only. These are a 3D-rendered wrap of this cat's actual approved colors around the assembled body, so they already show exactly where every color and marking sits once wrapped around the three-dimensional shape, at what size, and with what boundary shape — not an approximation. They are also the ground truth for overall body proportions, silhouette, and pose. Reproduce the marking layout shown in these four views as exactly as possible: same boundary shapes, same size and position on each body part, same left/right sides — do not simplify, smooth over, shrink, enlarge, shift, or reinterpret any marking by eye. EXCEPTION: the ears in these 3D renders are a simplified flat-rectangle placeholder used only to map ear color/marking correctly — they are NOT a shape reference. Ignore the 3D render's rectangular ear silhouette entirely; take ear shape from reference 3 (the gray photo) instead, per rule 3 below.
 2. A labeled stitch-map overview image — a flat, unshaded reference for the exact yarn colors used. Use it to confirm the precise color on parts where the 3D render's lighting/shading makes a color ambiguous, and to double-check coverage on any area not clearly visible across the four 3D views. It must not be used to override the marking placement/shape already shown in the 3D render views.
-3. A gray crocheted-cat reference photo — the authoritative source for crochet construction only: stitch texture, yarn thickness, stuffed proportions, body/head/ear/leg/tail shape, safety-eye style, embroidered nose, mouth, and whiskers. Use it ONLY for shape, material, and construction — never for color.
+3. A gray crocheted-cat reference photo — the authoritative source for crochet construction AND SHAPE: stitch texture, yarn thickness, stuffed proportions, body/head/leg/tail shape, safety-eye style, embroidered nose, mouth, whiskers, and — importantly — the actual EAR SHAPE (real crocheted amigurumi ears: rounded/triangular, curved, gently tapered, matching this photo's ear silhouette exactly). Use it for shape and material and construction — never for color. Ear shape in particular must be copied from this photo, never from the 3D render's flat rectangular ear placeholder.
 4. This text — clarifies presentation only and must never override what the reference images show.
 
 STRICT RULES:
 - Coat colors and marking placement must come ONLY from the four 3D render views and the stitch-map overview. Do not use the gray reference photo's gray color anywhere unless the stitch maps themselves specify gray.
+- Ear SHAPE (the physical silhouette/contour/curve of the ears) must be copied from the gray reference photo exactly — real crocheted amigurumi ears, not the 3D render's flat rectangular placeholder shape. Ear COLOR and any ear markings still come from the 3D render views / stitch-map overview, mapped onto that correctly-shaped ear.
 - Do not invent, guess, or add any marking, patch, stripe, or color that is not visibly present in the 3D render views or the stitch-map overview.
-- Copy the marking pattern from the 3D render views exactly, as if tracing it — matching boundary shapes, edges, size, and placement on each body part precisely, not just approximately.
+- Copy the marking pattern from the 3D render views exactly, as if tracing it — matching boundary shapes, edges, size, and placement on each body part precisely, not just approximately (except ear shape itself, which follows rule 3 above instead).
 - Preserve every asymmetrical marking exactly as shown. The cat's left stays left and its right stays right in the output — do not mirror, reverse, flip, or swap the left and right sides.
-- Match the gray reference photo's crochet construction exactly: visible V-shaped single-crochet stitches, compact amigurumi stitch size, worsted-weight yarn texture, soft yarn fibers, natural stuffed shaping, subtle sewn seams between parts, and small realistic handmade imperfections.
+- Match the gray reference photo's crochet construction exactly: visible V-shaped single-crochet stitches, compact amigurumi stitch size, worsted-weight yarn texture, soft yarn fibers, natural stuffed shaping, subtle sewn seams between parts, small realistic handmade imperfections, and the correct ear shape described above.
 - The result must look genuinely hand-crocheted from yarn. Do not render it as smooth plastic, clay, polished vinyl, real animal fur, a living cat, a cartoon, an illustration, a low-poly 3D model, or fabric.
 - Do not add accessories, clothing, collars, bows, props, text, watermarks, logos, or a second cat.
 - Match the exact body proportions, silhouette, and seated pose shown in the 3D render views — not just a similar pose.
@@ -2540,11 +2546,74 @@ function displayGeneratedCrochetPhotoSet(angles){
   CAT_PHOTO_ANGLES.forEach(angle=>{
     const img = document.getElementById("catPhotoPreviewImg-"+angle);
     if(img && angles[angle]) img.src = angles[angle];
+    const btn = document.getElementById("btnRegenerateAngle-"+angle);
+    if(btn) btn.disabled = false;
   });
   wrap.style.display = "block";
   document.getElementById("btnRegenerateCatPhoto").disabled = false;
   document.getElementById("btnApproveCatPhoto").disabled = false;
   document.getElementById("catPhotoApprovedBadge").style.display = "none";
+}
+
+// Regenerates a single angle in place, leaving the other three approved/
+// unapproved photos untouched. Shares the same validation, reference-image
+// set, and prompt-building (per-angle framing instruction) as the full
+// 4-angle generation — only the number of OpenAI calls differs (one instead
+// of four). Approval is cleared since the set changed and needs re-review.
+async function regenerateSingleCatPhotoAngle(angle, feedbackText){
+  const status = document.getElementById("catPhotoStatus");
+  const validationDiv = document.getElementById("catPhotoValidation");
+  const angleBtn = document.getElementById("btnRegenerateAngle-"+angle);
+  const allBtns = CAT_PHOTO_ANGLES.map(a=>document.getElementById("btnRegenerateAngle-"+a));
+  const genBtn = document.getElementById("btnGenerateCatPhoto");
+  const regenBtn = document.getElementById("btnRegenerateCatPhoto");
+  const approveBtn = document.getElementById("btnApproveCatPhoto");
+
+  if(!generatedCatPhoto || !generatedCatPhoto.angles){
+    status.textContent = "Generate the full set of 4 photos first before regenerating a single angle.";
+    status.className = "hint badge-warn";
+    return;
+  }
+
+  const { blockers, warnings, views, overview } = validateImageGenerationInputs();
+  const colorWarnings = feedbackMentionsUnknownColor(feedbackText);
+  if(colorWarnings.length){
+    warnings.push(`Your feedback mentions "${colorWarnings.join(", ")}", which isn't in your current palette. The stitch maps stay the authoritative color source — if you actually want this color, add/edit it in the Step 2 palette and repaint the stitch map first, then regenerate.`);
+  }
+  if(blockers.length){
+    validationDiv.textContent = "Blocked: " + blockers.join(" ");
+    validationDiv.className = "hint badge-warn";
+    return;
+  }
+  validationDiv.textContent = warnings.length ? "Warning: " + warnings.join(" ") : "";
+  validationDiv.className = "hint" + (warnings.length ? " badge-warn" : "");
+
+  const label = CAT_PHOTO_ANGLE_LABELS[angle] || angle;
+  genBtn.disabled = true; regenBtn.disabled = true; approveBtn.disabled = true;
+  allBtns.forEach(b=>{ if(b) b.disabled = true; });
+  status.textContent = `Calling OpenAI for the ${label} angle only…`;
+  status.className = "hint";
+
+  const referenceImages = [views.front, views.left, views.right, views.back, overview, grayCatRef.dataUrl];
+
+  try{
+    const promptText = buildOpenAIImagePrompt(feedbackText, angle);
+    const dataUrl = await callOpenAIImageAPI(promptText, referenceImages);
+    generatedCatPhoto.angles[angle] = dataUrl;
+    generatedCatPhoto.approved = false;
+    const img = document.getElementById("catPhotoPreviewImg-"+angle);
+    if(img) img.src = dataUrl;
+    document.getElementById("catPhotoApprovedBadge").style.display = "none";
+    status.textContent = `${label} regenerated. Review it below, then Approve the set (or regenerate another angle).`;
+    status.className = "hint badge-ok";
+  }catch(err){
+    status.textContent = `${label} regeneration failed: ` + err.message;
+    status.className = "hint badge-warn";
+  }
+  genBtn.disabled = false;
+  regenBtn.disabled = !generatedCatPhoto;
+  approveBtn.disabled = !generatedCatPhoto;
+  allBtns.forEach(b=>{ if(b) b.disabled = false; });
 }
 
 function approveGeneratedCrochetPhoto(){
@@ -2622,6 +2691,12 @@ document.getElementById("btnRegenerateCatPhoto").addEventListener("click", ()=>{
   generateCrochetCatPhotoSet(document.getElementById("catPhotoFeedback").value);
 });
 document.getElementById("btnApproveCatPhoto").addEventListener("click", approveGeneratedCrochetPhoto);
+CAT_PHOTO_ANGLES.forEach(angle=>{
+  const btn = document.getElementById("btnRegenerateAngle-"+angle);
+  if(btn) btn.addEventListener("click", ()=>{
+    regenerateSingleCatPhotoAngle(angle, document.getElementById("catPhotoFeedback").value);
+  });
+});
 
 // Print output is rebuilt straight from the grids/scene each time (images +
 // per-round text), not from the plain-text preview blob, so it's the one
@@ -2999,6 +3074,10 @@ async function addPartPages(pdfCtx, part, instance){
   await addColorInstructionPages(pdfCtx, part, instance);
 }
 
+// Spliced in right after the (personalized) cover page — see
+// buildCustomerPatternPdf()'s humanPageNumber===1 branch — so the customer
+// sees what they're getting before the construction pages, not as an
+// afterthought at the back of the pattern.
 async function addFinishedPreviewPages(pdfCtx){
   const { pageW, pageH, margin, fontReg } = pdfCtx;
   const customer = document.getElementById("customerName").value || "(unnamed)";
@@ -3022,8 +3101,8 @@ async function addFinishedPreviewPages(pdfCtx){
     page.drawImage(img, {x:imgX, y:imgY, width:iw, height:ih});
   }
 
-  // Second (last) page: the same OpenAI-generated cat, photographed from
-  // all four angles (front/back/left/right) — replaces the old flat-colored
+  // Second page: the same OpenAI-generated cat, photographed from all four
+  // angles (front/back/left/right) — replaces the old flat-colored
   // schematic 3D-render grid so the customer sees the actual photorealistic
   // result from every side, not the construction model.
   if(angles){
@@ -3085,8 +3164,9 @@ async function addYarnListPage(pdfCtx){
    2 of the bundled base-pattern.pdf (the "Welcome" page) has open space
    below its generic "Materials:" line — this draws a quick per-cat color
    reference into that space. The full list with brand/yardage still lives
-   on its own page near the end (addYarnListPage) — this is just a
-   glanceable summary in the same spot a customer already reads for
+   on its own page immediately after this one (addYarnListPage, spliced in
+   right behind the Materials page) — this is just a glanceable summary in
+   the same spot a customer already reads for
    supplies. The topY/bottomSafe bounds below were measured directly off
    a render of base-pattern.pdf's page 2 (page is 1500×2250pt, same as the
    cover bboxes further down) — if that page's layout is ever redesigned,
@@ -3251,10 +3331,14 @@ async function buildCustomerPatternPdf(sourcePdf, onProgress){
     if(humanPageNumber===1){
       if(onProgress) onProgress("Personalizing cover page…");
       await personalizeCoverPage(pdfCtx, addedPage);
+      if(onProgress) onProgress("Adding finished-cat preview (4 angles)…");
+      await addFinishedPreviewPages(pdfCtx);
     }
     if(humanPageNumber===2){
       if(onProgress) onProgress("Adding this cat's colors to the Materials page…");
       await addColorsUsedToMaterialsPage(pdfCtx, addedPage);
+      if(onProgress) onProgress("Adding yarn colors page…");
+      await addYarnListPage(pdfCtx);
     }
 
     if(humanPageNumber===7){ await addPartPages(pdfCtx,"frontLegs",0); await addPartPages(pdfCtx,"frontLegs",1); }
@@ -3263,11 +3347,6 @@ async function buildCustomerPatternPdf(sourcePdf, onProgress){
     if(humanPageNumber===15){ await addPartPages(pdfCtx,"tail",0); }
     if(humanPageNumber===18){ await addPartPages(pdfCtx,"head",0); }
     if(humanPageNumber===26){ await addPartPages(pdfCtx,"body",0); }
-    if(humanPageNumber===43){
-      if(onProgress) onProgress("Adding finished-cat preview (4 angles)…");
-      await addFinishedPreviewPages(pdfCtx);
-      await addYarnListPage(pdfCtx);
-    }
   }
   return outputPdf;
 }
